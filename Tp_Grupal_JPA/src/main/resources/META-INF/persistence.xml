@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="https://jakarta.ee/xml/ns/persistence"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence
+                                 https://jakarta.ee/xml/ns/persistence/persistence_3_0.xsd"
+             version="3.0">
+
+    <persistence-unit name="FacturacionPU" transaction-type="RESOURCE_LOCAL">
+        <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+
+        <!-- Las Entidades acá -->
+        <class>com.tup.programacion3.Entity.Articulo</class>
+        <class>com.tup.programacion3.Entity.AuditoriaApp</class>
+        <class>com.tup.programacion3.Entity.Cliente</class>
+        <class>com.tup.programacion3.Entity.CondicionIva</class>
+        <class>com.tup.programacion3.Entity.Contacto</class>
+        <class>com.tup.programacion3.Entity.Domicilio</class>
+        <class>com.tup.programacion3.Entity.EntityId</class>
+        <class>com.tup.programacion3.Entity.FacturaVenta</class>
+        <class>com.tup.programacion3.Entity.FacturaVentaDetalle</class>
+        <class>com.tup.programacion3.Entity.ListaPrecio</class>
+        <class>com.tup.programacion3.Entity.ListaPrecioArticulo</class>
+        <class>com.tup.programacion3.Entity.Marca</class>
+        <class>com.tup.programacion3.Entity.PuntoVenta</class>
+        <class>com.tup.programacion3.Entity.Rubro</class>
+        <class>com.tup.programacion3.Entity.TipoMoneda</class>
+        <class>com.tup.programacion3.Entity.Usuario</class>
+        <properties>
+            <!-- Conexión a PostgreSQL -->
+            <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver" />
+            <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://localhost:5432/underBase" />
+            <property name="jakarta.persistence.jdbc.user" value="underUTN" />
+            <property name="jakarta.persistence.jdbc.password" value="" />
+
+            <!-- Configuración de Hibernate -->
+            <property name="hibernate.show_sql" value="true" />
+            <property name="hibernate.format_sql" value="true" />
+            <property name="hibernate.hbm2ddl.auto" value="update" />
+        </properties>
+
+    </persistence-unit>
+</persistence>
