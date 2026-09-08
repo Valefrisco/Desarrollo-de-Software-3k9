@@ -31,7 +31,7 @@ public class FacturaVenta extends AuditoriaApp{
     private Date fechaAnulacion;
     private String observaciones;
     @OneToMany(mappedBy = "factura", cascade = CascadeType.ALL)
-    private List<FacturaVentaDetalle> detalles;
+    private List<FacturaVentaDetalle> detalles = new ArrayList<>();
 
     public FacturaVenta() {
     }
@@ -50,9 +50,16 @@ public class FacturaVenta extends AuditoriaApp{
         this.estado = estado;
         this.fechaAnulacion = fechaAnulacion;
         this.observaciones = observaciones;
-        this.detalles = detalles  = new ArrayList<>();
+        this.detalles = detalles;
     }
 
+    public void addDetalle(FacturaVentaDetalle detalle) { //NO PIDE HACER ESTE METODO PERO BUENO LO AGREGUE PORQUE PARECE LOGICO
+    if (this.detalles == null) {
+        this.detalles = new ArrayList<>();
+    }
+    this.detalles.add(detalle);
+    detalle.setFactura(this); 
+}
     public Long getNumero() {
         return numero;
     }
