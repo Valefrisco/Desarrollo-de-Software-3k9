@@ -3,7 +3,7 @@ package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "CONTACTO")
+@Table(name = "CONTACTOS")
 public class Contacto extends  EntityId{
     private String email;
     private String telefono;

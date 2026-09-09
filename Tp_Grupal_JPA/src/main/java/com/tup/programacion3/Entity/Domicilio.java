@@ -3,7 +3,7 @@ package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "DOMICILIO")
+@Table(name = "DOMICILIOS")
 public class Domicilio extends EntityId{
     private String nombreCalle;
     private String numeroCalle;

@@ -2,7 +2,7 @@ package com.tup.programacion3.Entity;
 
 import jakarta.persistence.*;
 @Entity
-@Table(name = "MARCA")
+@Table(name = "MARCAS")
 public class Marca extends AuditoriaApp{
 @Column(nullable = false)
     private String denominacion;

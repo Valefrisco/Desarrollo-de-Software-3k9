@@ -7,8 +7,11 @@ import jakarta.persistence.*;
 public class PuntoVenta extends AuditoriaApp{
     @Column(nullable = false)
     private int numero;
+    @Column(nullable = false)
     private String descripcion;
+    @Column(nullable = false)
     private String tipoEmision;
+    @Column(nullable = false)
     private String domicilioComercial;
 
     public PuntoVenta() {

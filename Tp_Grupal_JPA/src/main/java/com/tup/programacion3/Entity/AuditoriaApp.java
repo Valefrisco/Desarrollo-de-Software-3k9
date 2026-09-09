@@ -8,11 +8,12 @@ import java.util.Date;
 public abstract class AuditoriaApp extends EntityId {
     @Column(nullable = false)
     protected LocalDateTime fechaAlta;
+    @Column(nullable = false)
     protected LocalDateTime fechaBaja;
     @Column(nullable = false)
     protected LocalDateTime fechaaModificar;
     @ManyToOne
-    @JoinColumn(name = "usuarioCarga_id ")
+    @JoinColumn(name = "usuarioCarga_id " , nullable = false)
     protected Usuario usuarioCarga;
     @ManyToOne
     protected Usuario usuarioBaja;

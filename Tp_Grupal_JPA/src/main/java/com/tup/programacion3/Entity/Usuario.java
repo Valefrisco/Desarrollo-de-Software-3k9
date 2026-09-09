@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.util.Objects;
 
 @Entity
-@Table (name = "USUARIO")
+@Table (name = "USUARIOS")
 public class Usuario extends EntityId {
     @Column(nullable = false)
     private String usuario;

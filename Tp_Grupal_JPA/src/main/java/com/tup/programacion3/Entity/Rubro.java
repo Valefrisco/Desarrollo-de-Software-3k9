@@ -2,7 +2,7 @@ package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "RUBRO")
+@Table(name = "RUBROS")
 public class Rubro extends AuditoriaApp{
 
 @Column(nullable = false)
