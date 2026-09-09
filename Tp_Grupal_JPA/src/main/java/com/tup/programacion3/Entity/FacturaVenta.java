@@ -1,6 +1,7 @@
 package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -12,7 +13,7 @@ public class FacturaVenta extends AuditoriaApp{
     private Long numero;
     @Column(nullable = false)
     @Temporal(TemporalType.DATE)
-    private Date fechaEmision;
+    private LocalDateTime fechaEmision;
     @ManyToOne
     @JoinColumn(nullable = false)
     private PuntoVenta puntoVenta;
@@ -37,7 +38,7 @@ public class FacturaVenta extends AuditoriaApp{
     public FacturaVenta() {
     }
 
-    public FacturaVenta(Long numero, Date fechaEmision, PuntoVenta puntoVenta, double importeCobrado, double importeSaldo, double importeTotal, String cae, Date caeFechaVencimiento, String resultadoAfip, String motivoRechazo, String estado, Date fechaAnulacion, String observaciones, List<FacturaVentaDetalle> detalles) {
+    public FacturaVenta(Long numero, LocalDateTime fechaEmision, PuntoVenta puntoVenta, double importeCobrado, double importeSaldo, double importeTotal, String cae, Date caeFechaVencimiento, String resultadoAfip, String motivoRechazo, String estado, Date fechaAnulacion, String observaciones, List<FacturaVentaDetalle> detalles) {
         this.numero = numero;
         this.fechaEmision = fechaEmision;
         this.puntoVenta = puntoVenta;
@@ -133,11 +134,11 @@ public class FacturaVenta extends AuditoriaApp{
         this.puntoVenta = puntoVenta;
     }
 
-    public Date getFechaEmision() {
+    public LocalDateTime getFechaEmision() {
         return fechaEmision;
     }
 
-    public void setFechaEmision(Date fechaEmision) {
+    public void setFechaEmision(LocalDateTime fechaEmision) {
         this.fechaEmision = fechaEmision;
     }
 
