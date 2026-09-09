@@ -3,7 +3,7 @@ package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "CLIENTE")
+@Table(name = "CLIENTES")
 public class Cliente extends  AuditoriaApp{
 
     @Column(nullable = false)
