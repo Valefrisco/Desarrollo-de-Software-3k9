@@ -2,7 +2,7 @@ package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "ARTICULO")
+@Table(name = "ARTICULOS")
 public class Articulo extends AuditoriaApp{
     @ManyToOne
     @JoinColumn(name = "Rubro_id")
