@@ -11,6 +11,8 @@ import java.util.ArrayList;
 
 public class Main {
     public static void main(String[] args) {
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Argentina/Buenos_Aires"));
+
         EntityManagerFactory emf = Persistence.createEntityManagerFactory("FacturacionPU");
         EntityManager em = emf.createEntityManager();
 

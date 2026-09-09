@@ -1,0 +1,12 @@
+services:
+  postgres-db:
+    image: postgres:15
+    container_name: facturacion_db_container
+    environment:
+      POSTGRES_USER: underUTN
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: underBase
+      TZ: America/Argentina/Buenos_Aires    # <-- Agregamos esto
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
