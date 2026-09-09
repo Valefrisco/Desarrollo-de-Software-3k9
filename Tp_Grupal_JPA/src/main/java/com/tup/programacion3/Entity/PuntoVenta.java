@@ -2,6 +2,8 @@ package com.tup.programacion3.Entity;
 
 import jakarta.persistence.*;
 
+@Entity
+@Table(name = "PUNTO_VENTA")
 public class PuntoVenta extends AuditoriaApp{
     @Column(nullable = false)
     private int numero;
