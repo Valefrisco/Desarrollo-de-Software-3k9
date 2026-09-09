@@ -12,7 +12,6 @@ import java.util.List;
 public class FacturaVenta extends AuditoriaApp{
     private Long numero;
     @Column(nullable = false)
-    @Temporal(TemporalType.DATE)
     private LocalDateTime fechaEmision;
     @ManyToOne
     @JoinColumn(nullable = false)
@@ -30,7 +29,6 @@ public class FacturaVenta extends AuditoriaApp{
     private String estado;
     @Temporal(TemporalType.DATE)
     private Date fechaAnulacion;
-    @Column(nullable = false)
     private String observaciones;
     @OneToMany(mappedBy = "factura", cascade = CascadeType.ALL)
     private List<FacturaVentaDetalle> detalles = new ArrayList<>();
