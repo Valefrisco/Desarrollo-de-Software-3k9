@@ -1,15 +1,16 @@
 package com.tup.programacion3.Entity;
 import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @MappedSuperclass
 public abstract class AuditoriaApp extends EntityId {
     @Column(nullable = false)
-    protected Date fechaAlta;
-    protected Date fechaBaja;
+    protected LocalDateTime fechaAlta;
+    protected LocalDateTime fechaBaja;
     @Column(nullable = false)
-    protected Date fechaaModificar;
+    protected LocalDateTime fechaaModificar;
     @ManyToOne
     @JoinColumn(name = "usuarioCarga_id ")
     protected Usuario usuarioCarga;
@@ -22,7 +23,7 @@ public abstract class AuditoriaApp extends EntityId {
     public AuditoriaApp() {
     }
 
-    public AuditoriaApp(Date fechaAlta, Date fechaBaja, Date fechaaModificar, Usuario usuarioModificacion, Usuario usuarioBaja, Usuario usuarioCarga) {
+    public AuditoriaApp(LocalDateTime fechaAlta, LocalDateTime fechaBaja, LocalDateTime fechaaModificar, Usuario usuarioModificacion, Usuario usuarioBaja, Usuario usuarioCarga) {
         super();
         this.fechaAlta = fechaAlta;
         this.fechaBaja = fechaBaja;
@@ -32,11 +33,11 @@ public abstract class AuditoriaApp extends EntityId {
         this.usuarioCarga = usuarioCarga;
     }
 
-    public Date getFechaAlta() {
+    public LocalDateTime getFechaAlta() {
         return fechaAlta;
     }
 
-    public void setFechaAlta(Date fechaAlta) {
+    public void setFechaAlta(LocalDateTime fechaAlta) {
         this.fechaAlta = fechaAlta;
     }
 
@@ -64,19 +65,19 @@ public abstract class AuditoriaApp extends EntityId {
         this.usuarioCarga = usuarioCarga;
     }
 
-    public Date getFechaaModificar() {
+    public LocalDateTime getFechaaModificar() {
         return fechaaModificar;
     }
 
-    public void setFechaaModificar(Date fechaaModificar) {
+    public void setFechaaModificar(LocalDateTime fechaaModificar) {
         this.fechaaModificar = fechaaModificar;
     }
 
-    public Date getFechaBaja() {
+    public LocalDateTime getFechaBaja() {
         return fechaBaja;
     }
 
-    public void setFechaBaja(Date fechaBaja) {
+    public void setFechaBaja(LocalDateTime fechaBaja) {
         this.fechaBaja = fechaBaja;
     }
     @Override
