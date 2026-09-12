@@ -26,11 +26,16 @@
         <class>com.tup.programacion3.Entity.TipoMoneda</class>
         <class>com.tup.programacion3.Entity.Usuario</class>
         <properties>
+            <!-- Esquema por defecto para todas las entidades -->
+            <property name="hibernate.default_schema" value="modeloVentas" />
             <!-- Conexión a PostgreSQL -->
             <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://localhost:5432/underBase" />
             <property name="jakarta.persistence.jdbc.user" value="underUTN" />
             <property name="jakarta.persistence.jdbc.password" value="admin" />
+
+            <!-- Dialecto explícito -->
+            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQLDialect" />
 
             <!-- Configuración de Hibernate -->
             <property name="hibernate.show_sql" value="true" />
