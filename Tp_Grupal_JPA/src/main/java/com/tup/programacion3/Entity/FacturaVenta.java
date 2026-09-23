@@ -141,6 +141,30 @@ public class FacturaVenta extends AuditoriaApp{
         this.puntoVenta = puntoVenta;
     }
 
+    public Cliente getCliente() {
+        return cliente;
+    }
+
+    public void setCliente(Cliente cliente) {
+        this.cliente = cliente;
+    }
+
+    public CondicionIva getCondicionIva() {
+        return condicionIva;
+    }
+
+    public void setCondicionIva(CondicionIva condicionIva) {
+        this.condicionIva = condicionIva;
+    }
+
+    public TipoMoneda getTipoMoneda() {
+        return tipoMoneda;
+    }
+
+    public void setTipoMoneda(TipoMoneda tipoMoneda) {
+        this.tipoMoneda = tipoMoneda;
+    }
+
     public LocalDateTime getFechaEmision() {
         return fechaEmision;
     }

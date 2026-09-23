@@ -40,7 +40,7 @@
             <!-- Configuración de Hibernate -->
             <property name="hibernate.show_sql" value="true" />
             <property name="hibernate.format_sql" value="true" />
-            <property name="hibernate.hbm2ddl.auto" value="update" />
+            <property name="hibernate.hbm2ddl.auto" value="create-drop" /> <!-- cambié esto de UPDATE a create-drop, para que cada vez que ejecutemos el main no se cree la misma fila siemrpe -->
         </properties>
 
     </persistence-unit>

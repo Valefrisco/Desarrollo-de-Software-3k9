@@ -7,6 +7,7 @@ import jakarta.persistence.Persistence;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 
 
 public class Main {
@@ -124,12 +125,45 @@ public class Main {
             em.persist(precioArt2);
 
             // ==================================================================
-            // 6. Instanciar Cabecera de FacturaVenta
+            // 6. Instanciar los datos obligatorios de la factura
+            // ==================================================================
+            Contacto contactoCliente = new Contacto("cliente@ejemplo.com", "1112345678", "44445555");
+            em.persist(contactoCliente);
+
+            Domicilio domicilioCliente = new Domicilio("123", "Av. Siempre Viva");
+            em.persist(domicilioCliente);
+
+            Cliente cliente = new Cliente("20-12345678-9", domicilioCliente, contactoCliente, "Cliente consumidor final");
+            cliente.setFechaAlta(ahora);
+            cliente.setFechaaModificar(ahora);
+            cliente.setUsuarioCarga(usuarioAdmin);
+            cliente.setUsuarioModificacion(usuarioAdmin);
+            em.persist(cliente);
+
+            CondicionIva condicionIva = new CondicionIva(5, "Consumidor final");
+            condicionIva.setFechaAlta(ahora);
+            condicionIva.setFechaaModificar(ahora);
+            condicionIva.setUsuarioCarga(usuarioAdmin);
+            condicionIva.setUsuarioModificacion(usuarioAdmin);
+            em.persist(condicionIva);
+
+            TipoMoneda tipoMoneda = new TipoMoneda("PES", "$", "Peso argentino");
+            tipoMoneda.setFechaAlta(ahora);
+            tipoMoneda.setFechaaModificar(ahora);
+            tipoMoneda.setUsuarioCarga(usuarioAdmin);
+            tipoMoneda.setUsuarioModificacion(usuarioAdmin);
+            em.persist(tipoMoneda);
+
+            // ==================================================================
+            // 7. Instanciar Cabecera de FacturaVenta
             // ==================================================================
             FacturaVenta factura = new FacturaVenta();
             factura.setNumero(1001L);
             factura.setFechaEmision(ahora);
             factura.setPuntoVenta(puntoVenta);
+            factura.setCliente(cliente);
+            factura.setCondicionIva(condicionIva);
+            factura.setTipoMoneda(tipoMoneda);
             factura.setEstado("EMITIDA");
             factura.setImporteCobrado(0.0);
             factura.setImporteSaldo(7000.0);
@@ -140,7 +174,7 @@ public class Main {
             factura.setUsuarioModificacion(usuarioAdmin);
 
             // ==================================================================
-            // 7. Instanciar Detalles y asociar usando el método helper
+            // 8. Instanciar Detalles y asociar usando el método helper
             // ==================================================================
             FacturaVentaDetalle detalle1 = new FacturaVentaDetalle();
             detalle1.setListaPrecioArticulo(precioArt1);
@@ -167,23 +201,64 @@ public class Main {
             factura.addDetalle(detalle2);
 
             // ==================================================================
-            // 8. REQUISITO CLAVE: Persistir ÚNICAMENTE el objeto cabecera FacturaVenta
+            // 9. REQUISITO CLAVE: Persistir ÚNICAMENTE el objeto cabecera FacturaVenta
             //    (No se debe llamar a em.persist para detalle1 ni detalle2)
             // ==================================================================
             em.persist(factura);
 
-            // 9. Confirmar transacción
+            //TP JPQL
+            //Obtener la lista completa de todas las facturas de venta registradas en el sistema.
+            String Consulta1 = "Select f from FacturaVenta f";
+            List<FacturaVenta> c1 = em.createQuery(Consulta1, FacturaVenta.class).getResultList();
+
+            //Seleccionar únicamente el número de factura, la fecha de emisión y el
+            //importe total de todas las facturas de venta.
+            String Consulta2 = "SELECT f.numero, f.fechaEmision, f.importeTotal FROM FacturaVenta f";
+            List<Object[]> c2 = em.createQuery(Consulta2, Object[].class).getResultList();
+            System.out.println("Consulta 2: Número de factura, fecha de emisión e importe total");
+            for (Object[] row : c2) {
+                Long numeroFactura = (Long) row[0];
+                LocalDateTime fechaEmision = (LocalDateTime) row[1];
+                Double importeTotal = (Double) row[2];
+
+                System.out.println("Número de factura: " + numeroFactura + ", Fecha de emisión: " + fechaEmision + ", Importe total: " + importeTotal);
+            }
+            //FALTAN PONER LAS DEMAS CONSULTAS DEL WORD DEL BATMAN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // 10. Confirmar transacción
             em.getTransaction().commit();
+
+
+
 
         } catch (Exception e) {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
+
+                System.out.println("UPPPSSS");
             }
             e.printStackTrace();
         } finally {
-            // 10. Cerrar recursos
+            // 11. Cerrar recursos
             em.close();
             emf.close();
         }
-    }
+}
 }
