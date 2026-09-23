@@ -27,6 +27,8 @@ dependencies {
     // Logger (opcional pero recomendable)
     implementation 'org.slf4j:slf4j-simple:2.0.13'
 
+
+    implementation 'com.h2database:h2:2.2.224'
 }
 
 test {

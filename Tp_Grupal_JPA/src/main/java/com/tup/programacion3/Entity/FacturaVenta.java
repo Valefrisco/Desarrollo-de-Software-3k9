@@ -8,7 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 
 @Entity
-@Table (name = "FACTURAVENTA") //como ibamos a usar el mismo esquema en todas las clases, lo agregue directamente en el persistence.xml
+@Table (name = "FACTURAVENTA")
 public class FacturaVenta extends AuditoriaApp{
     private Long numero;
     @Column(nullable = false)
@@ -16,15 +16,6 @@ public class FacturaVenta extends AuditoriaApp{
     @ManyToOne
     @JoinColumn(nullable = false)
     private PuntoVenta puntoVenta;
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private Cliente cliente;
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private CondicionIva condicionIva;
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private TipoMoneda tipoMoneda;
     private double importeCobrado;
     private double importeSaldo;
     @Column(nullable = false)
@@ -139,30 +130,6 @@ public class FacturaVenta extends AuditoriaApp{
 
     public void setPuntoVenta(PuntoVenta puntoVenta) {
         this.puntoVenta = puntoVenta;
-    }
-
-    public Cliente getCliente() {
-        return cliente;
-    }
-
-    public void setCliente(Cliente cliente) {
-        this.cliente = cliente;
-    }
-
-    public CondicionIva getCondicionIva() {
-        return condicionIva;
-    }
-
-    public void setCondicionIva(CondicionIva condicionIva) {
-        this.condicionIva = condicionIva;
-    }
-
-    public TipoMoneda getTipoMoneda() {
-        return tipoMoneda;
-    }
-
-    public void setTipoMoneda(TipoMoneda tipoMoneda) {
-        this.tipoMoneda = tipoMoneda;
     }
 
     public LocalDateTime getFechaEmision() {

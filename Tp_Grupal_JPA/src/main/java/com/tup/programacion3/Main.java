@@ -5,14 +5,11 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
-
 public class Main {
+
     public static void main(String[] args) {
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Argentina/Buenos_Aires"));
 
@@ -53,7 +50,7 @@ public class Main {
             // ==================================================================
             Rubro rubroBebidas = new Rubro();
             rubroBebidas.setCodigo(10);
-            rubroBebidas.setDenominacion("Bebidas");
+            rubroBebidas.setDenominacion("Bebidas.");
             rubroBebidas.setFechaAlta(ahora);
             rubroBebidas.setFechaaModificar(ahora);
             rubroBebidas.setUsuarioCarga(usuarioAdmin);
@@ -62,7 +59,7 @@ public class Main {
 
             Marca marcaGaseosa = new Marca();
             marcaGaseosa.setCodigo(200);
-            marcaGaseosa.setDenominacion("Coca Cola");
+            marcaGaseosa.setDenominacion("Coca Cola.");
             marcaGaseosa.setFechaAlta(ahora);
             marcaGaseosa.setFechaaModificar(ahora);
             marcaGaseosa.setUsuarioCarga(usuarioAdmin);
@@ -163,13 +160,10 @@ public class Main {
             factura.setNumero(1001L);
             factura.setFechaEmision(ahora);
             factura.setPuntoVenta(puntoVenta);
-            factura.setCliente(cliente);
-            factura.setCondicionIva(condicionIva);
-            factura.setTipoMoneda(tipoMoneda);
             factura.setEstado("EMITIDA");
             factura.setImporteCobrado(0.0);
             factura.setImporteSaldo(7000.0);
-            factura.setImporteTotal(7000.0); // 2 * 2500 + 1 * 2000 = 7000
+            factura.setImporteTotal(7000.0);
             factura.setFechaAlta(ahora);
             factura.setFechaaModificar(ahora);
             factura.setUsuarioCarga(usuarioAdmin);
@@ -187,7 +181,6 @@ public class Main {
             detalle1.setImporteNeto(4132.23);
             detalle1.setImporteIva(867.77);
             detalle1.setImporteSubtotal(5000.0);
-            // Asociación bidireccional mediante helper
             factura.addDetalle(detalle1);
 
             FacturaVentaDetalle detalle2 = new FacturaVentaDetalle();
@@ -199,247 +192,233 @@ public class Main {
             detalle2.setImporteNeto(1652.89);
             detalle2.setImporteIva(347.11);
             detalle2.setImporteSubtotal(2000.0);
-            // Asociación bidireccional mediante helper
             factura.addDetalle(detalle2);
 
             // ==================================================================
-            // 9. REQUISITO CLAVE: Persistir ÚNICAMENTE el objeto cabecera FacturaVenta
-            //    (No se debe llamar a em.persist para detalle1 ni detalle2)
+            // 9. Persistir cabecera FacturaVenta
             // ==================================================================
             em.persist(factura);
 
-            //TP JPQL
-            //Obtener la lista completa de todas las facturas de venta registradas en el sistema.
-            String Consulta1 = "Select f from FacturaVenta f";
-            List<FacturaVenta> c1 = em.createQuery(Consulta1, FacturaVenta.class).getResultList();
+            // ==================================================================
+            // AQUÍ COMIENZAN LAS CONSULTAS JPQL ORGANIZADAS CON IMPRESIÓN
+            // ==================================================================
 
-            //Seleccionar únicamente el número de factura, la fecha de emisión y el
-            //importe total de todas las facturas de venta.
-            String Consulta2 = "SELECT f.numero, f.fechaEmision, f.importeTotal FROM FacturaVenta f";
-            List<Object[]> c2 = em.createQuery(Consulta2, Object[].class).getResultList();
-            System.out.println("Consulta 2: Número de factura, fecha de emisión e importe total");
-            for (Object[] row : c2) {
-                Long numeroFactura = (Long) row[0];
-                LocalDateTime fechaEmision = (LocalDateTime) row[1];
-                Double importeTotal = (Double) row[2];
+            imprimirSeccion(1, "Lista completa de todas las facturas");
+            List<FacturaVenta> facturas1 = em.createQuery("""
+                    SELECT f
+                    FROM FacturaVenta f""", FacturaVenta.class).getResultList();
+            facturas1.forEach(f -> System.out.println("-> Factura N°: " + f.getNumero() + " | Total: " + f.getImporteTotal()));
 
-                System.out.println("Número de factura: " + numeroFactura + ", Fecha de emisión: " + fechaEmision + ", Importe total: " + importeTotal);
+            imprimirSeccion(2, "Proyección: número, fecha emisión e importe total");
+            List<Object[]> facturas2 = em.createQuery("""
+                    SELECT f.numero, f.fechaEmision, f.importeTotal 
+                    FROM FacturaVenta f""", Object[].class).getResultList();
+            for (Object[] row : facturas2) {
+                System.out.println("-> Factura N°: " + row[0] + " | Fecha: " + row[1] + " | Total: " + row[2]);
             }
 
-            //Obtener la lista completa de todas las facturas de venta registradas en el sistema.
-
-            List<FacturaVenta> facturas1 = em.createQuery("""
-                                                SELECT f
-                                                FROM FacturaVenta f""", FacturaVenta.class).getResultList();
-
-            //Seleccionar únicamente el número de factura, la fecha de emisión y el
-            //importe total de todas las facturas de venta.
-
-            List<Object[]> facturas2 = em.createQuery("""
-                                                SELECT f.numero, f.fechaEmision, f.importeTotal
-                                                FROM FacturaVenta f""", Object[].class).getResultList();
-
-
-            // Obtener todos los artículos que pertenecen a un rubro con una
-            //denominación específica (ej. "Electrónica").
-
+            imprimirSeccion(3, "Artículos por rubro");
             List<Articulo> articulos1 = em.createQuery("""
-                                            SELECT a
-                                            FROM Articulo a
-                                            WHERE LOWER(a.rubro.denominacion) = LOWER (:denominacion)""", Articulo.class).setParameter("denominacion", "Electronica").getResultList();
+                    SELECT a 
+                    FROM Articulo a 
+                    WHERE LOWER(a.rubro.denominacion) = LOWER(:denominacion)""", Articulo.class)
+                    .setParameter("denominacion", "Bebidas.")
+                    .getResultList();
+            articulos1.forEach(a -> System.out.println("-> Artículo: " + a.getCodigo() + " - " + a.getDenominacion()));
 
-            //Listar todas las facturas de venta emitidas dentro de un rango de fechas
-            //determinado.
-
-            SimpleDateFormat formato = new SimpleDateFormat("yyyy-MM-dd");
-
-            Date desde = formato.parse("2026-09-09");
-            Date hasta = formato.parse("2026-09-10");
-
+            imprimirSeccion(4, "Facturas emitidas dentro de un rango de fechas");
+            LocalDateTime fechaDesde = ahora.minusDays(1);
+            LocalDateTime fechaHasta = ahora.plusDays(1);
             List<FacturaVenta> facturas3 = em.createQuery("""
-                                                SELECT f
-                                                FROM FacturaVenta f
-                                                WHERE f.fechaEmision BETWEEN :desde AND :hasta""", FacturaVenta.class).setParameter("desde",  desde).setParameter("hasta", hasta).getResultList();
+                    SELECT f 
+                    FROM FacturaVenta f 
+                    WHERE f.fechaEmision BETWEEN :desde AND :hasta""", FacturaVenta.class)
+                    .setParameter("desde", fechaDesde)
+                    .setParameter("hasta", fechaHasta)
+                    .getResultList();
+            facturas3.forEach(f -> System.out.println("-> Factura ID: " + f.getId() + " | Fecha: " + f.getFechaEmision()));
 
-            //Obtener las facturas cuyo estado sea "EMITIDA", con un importe total
-            //superior a $10,000 y que no hayan sido anuladas (fechaAnulacion sea nula).
-
+            imprimirSeccion(5, "Facturas EMITIDA > $10.000 sin anular");
             List<FacturaVenta> facturas4 = em.createQuery("""
-                                                SELECT f
-                                                FROM FacturaVenta f
-                                                WHERE f.estado = :estado AND f.importeTotal > :importe AND f.fechaAnulacion IS NULL""", FacturaVenta.class).setParameter("estado", "EMITIDA").setParameter("importe", 10000.0).getResultList();
+                    SELECT f 
+                    FROM FacturaVenta f 
+                    WHERE f.estado = :estado 
+                      AND f.importeTotal > :importe 
+                      AND f.fechaAnulacion IS NULL""", FacturaVenta.class)
+                    .setParameter("estado", "EMITIDA")
+                    .setParameter("importe", 10000.0)
+                    .getResultList();
+            System.out.println("-> Facturas encontradas: " + facturas4.size());
 
-            //Buscar todos los clientes cuya denominación contenga un texto parcial
-            //(sin importar mayúsculas/minúsculas) o cuyo CUIT/CUIL comience con "20-".
-
+            imprimirSeccion(6, "Clientes por denominación parcial o CUIT '20-'");
             List<Cliente> cliente1 = em.createQuery("""
-                                        SELECT c
-                                        FROM Cliente c
-                                        WHERE LOWER(c.denominacion) LIKE LOWER(:denominacion) OR c.cuitCuil LIKE :cuit""", Cliente.class).setParameter("denominacion", "%Ar%").setParameter("cuit", "20-%").getResultList();
+                    SELECT c 
+                    FROM Cliente c 
+                    WHERE LOWER(c.denominacion) LIKE LOWER(:denominacion) 
+                       OR c.cuitCuil LIKE :cuit""", Cliente.class)
+                    .setParameter("denominacion", "%Ar%")
+                    .setParameter("cuit", "20-%")
+                    .getResultList();
+            cliente1.forEach(c -> System.out.println("-> Cliente: " + c.getDenominacion() + " | CUIT: " + c.getCuitCuil()));
 
-            //Obtener sin duplicados todos los estados posibles registrados en las
-            //facturas de venta, ordenados alfabéticamente de forma ascendente.
-
+            imprimirSeccion(7, "Estados distintos de facturas ordenados");
             List<String> estados1 = em.createQuery("""
-                                               SELECT DISTINCT f.estado
-                                               FROM FacturaVenta f
-                                               ORDER BY f.estado ASC""", String.class).getResultList();
+                    SELECT DISTINCT f.estado 
+                    FROM FacturaVenta f 
+                    ORDER BY f.estado ASC""", String.class).getResultList();
+            estados1.forEach(est -> System.out.println("-> Estado: " + est));
 
-            //Obtener la cantidad total de facturas emitidas, la suma acumulada de
-            //sus importes totales y el importe promedio devuelto en un solo objeto/arreglo.
-
+            imprimirSeccion(8, "Agregaciones: COUNT, SUM, AVG de facturas emitidas");
             Object[] objects1 = em.createQuery("""
-                                                SELECT COUNT(f), SUM(f.importeTotal), AVG(f.importeTotal)
-                                                FROM FacturaVenta f
-                                                WHERE f.estado = :estado""", Object[].class).setParameter("estado", "EMITIDA").getSingleResult();
+                    SELECT COUNT(f), SUM(f.importeTotal), AVG(f.importeTotal) 
+                    FROM FacturaVenta f 
+                    WHERE f.estado = :estado""", Object[].class)
+                    .setParameter("estado", "EMITIDA")
+                    .getSingleResult();
+            System.out.println("-> Cantidad: " + objects1[0] + " | Suma: $" + objects1[1] + " | Promedio: $" + objects1[2]);
 
-            //Obtener todos los puntos de venta cuyo número coincida con una lista
-            //de enteros proporcionada por parámetro (ej. 1, 2, 5).
-
-            List<Integer> numeros = List.of(1, 2, 5);
-
+            imprimirSeccion(9, "Puntos de venta por lista de números IN");
             List<PuntoVenta> puntoVentas1 = em.createQuery("""
-                                                    SELECT pv
-                                                    FROM PuntoVenta pv
-                                                    WHERE pv.numero IN :numero""", PuntoVenta.class).setParameter("numero", numeros).getResultList();
+                    SELECT pv 
+                    FROM PuntoVenta pv 
+                    WHERE pv.numero IN :numeros""", PuntoVenta.class)
+                    .setParameter("numeros", List.of(1, 2, 5))
+                    .getResultList();
+            puntoVentas1.forEach(pv -> System.out.println("-> PV N° " + pv.getNumero() + ": " + pv.getDescripcion()));
 
-            //consultar todas las facturas de venta creadas por un usuario en
-            //particular navegando por su nombre de usuario de carga (usuarioCarga.usuario).
-
+            imprimirSeccion(10, "Facturas por usuario de carga");
             List<FacturaVenta> facturas5 = em.createQuery("""
-                                                SELECT f
-                                                FROM FacturaVenta f
-                                                WHERE f.usuarioCarga.usuario = :usuario""", FacturaVenta.class).setParameter("usuario", "admin").getResultList();
+                    SELECT f 
+                    FROM FacturaVenta f 
+                    WHERE f.usuarioCarga.usuario = :usuario""", FacturaVenta.class)
+                    .setParameter("usuario", "admin")
+                    .getResultList();
+            facturas5.forEach(f -> System.out.println("-> Factura N° " + f.getNumero() + " registrada por admin"));
 
-            //Obtener todos los detalles de factura (FacturaVentaDetalle) que
-            //correspondan a facturas emitidas por un punto de venta determinado.
-
+            imprimirSeccion(11, "Detalles de facturas por número de punto de venta");
             List<FacturaVentaDetalle> facturasDetalles1 = em.createQuery("""
-                                                                SELECT fv
-                                                                FROM FacturaVentaDetalle fv
-                                                                JOIN fv.factura f
-                                                                WHERE f.puntoVenta.numero = :numero""", FacturaVentaDetalle.class).setParameter("numero", 1).getResultList();
+                    SELECT fv 
+                    FROM FacturaVentaDetalle fv 
+                    JOIN fv.factura f 
+                    WHERE f.puntoVenta.numero = :numero""", FacturaVentaDetalle.class)
+                    .setParameter("numero", 1)
+                    .getResultList();
+            facturasDetalles1.forEach(d -> System.out.println("-> Detalle: " + d.getDescripcion() + " | Subtotal: " + d.getImporteSubtotal()));
 
-            //Listar la denominación de todos los artículos junto con la denominación
-            //de su marca asociada, incluyendo también aquellos artículos que no posean una
-            //marca asignada.
-
+            imprimirSeccion(12, "Denominación de artículos con LEFT JOIN Marca");
             List<Object[]> denominaciones = em.createQuery("""
-                                                SELECT a.denominacion, m.denominacion
-                                                FROM Articulo a
-                                                LEFT JOIN a.marca m""", Object[].class).getResultList();
+                    SELECT a.denominacion, m.denominacion 
+                    FROM Articulo a 
+                    LEFT JOIN a.marca m""", Object[].class).getResultList();
+            for (Object[] row : denominaciones) {
+                System.out.println("-> Artículo: " + row[0] + " | Marca: " + (row[1] != null ? row[1] : "Sin Marca"));
+            }
 
-            //Obtener todas las facturas de venta que contengan al menos un detalle
-            //de artículo perteneciente a una marca específica.
-
+            imprimirSeccion(13, "Facturas que contienen artículos de marca específica");
             List<FacturaVenta> facturas6 = em.createQuery("""
-                                                SELECT DISTINCT f
-                                                FROM FacturaVenta f
-                                                JOIN f.detalles d
-                                                JOIN d.listaPrecioArticulo lpa
-                                                JOIN lpa.articulo a
-                                                JOIN a.marca m
-                                                WHERE m.denominacion = :marca
-                                                """, FacturaVenta.class)
-                    .setParameter("marca", "Samsung")
+                    SELECT DISTINCT f 
+                    FROM FacturaVenta f 
+                    JOIN f.detalles d 
+                    JOIN d.listaPrecioArticulo lpa 
+                    JOIN lpa.articulo a 
+                    JOIN a.marca m 
+                    WHERE m.denominacion = :marca""", FacturaVenta.class)
+                    .setParameter("marca", "Coca Cola.")
                     .getResultList();
+            facturas6.forEach(f -> System.out.println("-> Factura N°: " + f.getNumero()));
 
-            //Listar las facturas de venta cuyo importeTotal sea estrictamente mayor
-            //al promedio de importeTotal de todas las facturas registradas.
-
+            imprimirSeccion(14, "Facturas con total superior al promedio general");
             List<FacturaVenta> facturas7 = em.createQuery("""
-                                                SELECT f
-                                                FROM FacturaVenta f
-                                                WHERE f.importeTotal > (SELECT AVG(f2.importeTotal)
-                                                                        FROM FacturaVenta f2)""", FacturaVenta.class).getResultList();
-
-            // Obtener la descripción del punto de venta, la cantidad de facturas
-            //emitidas por cada uno y la suma total facturada.
-
-            List<Object[]> objects2 = em.createQuery("""
-                                            SELECT f.puntoVenta.descripcion, COUNT(f), SUM(f.importeTotal)
-                                            FROM FacturaVenta f
-                                            WHERE f.estado = :estado
-                                            GROUP BY f.puntoVenta.descripcion""", Object[].class).setParameter("estado", "EMITIDA").getResultList();
-
-
-            //Obtener los nombres de los usuarios de carga que hayan registrado más
-            //de 5 facturas de venta en el sistema.
-
-            List<String> objects3 = em.createQuery("""
-                                        SELECT u.usuario
-                                        FROM FacturaVenta f
-                                        JOIN f.usuarioCarga u
-                                        GROUP BY u.usuario
-                                        HAVING COUNT(f) > :numero""", String.class).setParameter("numero", 5).getResultList();
-
-            //Obtener la denominación de cada marca, la cantidad total de unidades
-            //vendidas (SUM(cantidad)) y el subtotal acumulado, agrupado por marca.
-
-            List<Object[]> objects4 = em.createQuery("""
-                                        SELECT m.denominacion, SUM(d.cantidad), SUM(d.importeSubtotal)
-                                        FROM FacturaVentaDetalle d
-                                        JOIN d.listaPrecioArticulo lpa
-                                        JOIN lpa.articulo a
-                                        JOIN a.marca m
-                                        GROUP BY m.denominacion
-                                        """, Object[].class).getResultList();
-
-            //Obtener la lista de todas las marcas que tienen al menos un artículo que
-            //haya sido facturado en alguna factura de venta.
-
-            List<Marca> marcas = em.createQuery("""
-                                    SELECT m
-                                    FROM Marca m
-                                    WHERE EXISTS (
-                                        SELECT d
-                                        FROM FacturaVentaDetalle d
-                                        JOIN d.listaPrecioArticulo lpa
-                                        JOIN lpa.articulo a
-                                        WHERE a.marca = m
-                                    )
-                                    """, Marca.class)
+                    SELECT f 
+                    FROM FacturaVenta f 
+                    WHERE f.importeTotal > (SELECT AVG(f2.importeTotal) FROM FacturaVenta f2)""", FacturaVenta.class)
                     .getResultList();
+            facturas7.forEach(f -> System.out.println("-> Factura sobre promedio N°: " + f.getNumero()));
 
-            //Obtener todos los artículos registrados en el sistema que nunca han sido
-            //incluidos en ningún detalle de factura de venta.
+            imprimirSeccion(15, "Resumen por punto de venta (GROUP BY)");
+            List<Object[]> objects2 = em.createQuery("""
+                    SELECT f.puntoVenta.descripcion, COUNT(f), SUM(f.importeTotal) 
+                    FROM FacturaVenta f 
+                    WHERE f.estado = :estado 
+                    GROUP BY f.puntoVenta.descripcion""", Object[].class)
+                    .setParameter("estado", "EMITIDA")
+                    .getResultList();
+            for (Object[] row : objects2) {
+                System.out.println("-> PV: " + row[0] + " | Cantidad: " + row[1] + " | Total Facturado: $" + row[2]);
+            }
 
+            imprimirSeccion(16, "Usuarios con más de 5 facturas (HAVING)");
+            List<String> objects3 = em.createQuery("""
+                    SELECT u.usuario 
+                    FROM FacturaVenta f 
+                    JOIN f.usuarioCarga u 
+                    GROUP BY u.usuario 
+                    HAVING COUNT(f) > :numero""", String.class)
+                    .setParameter("numero", 5L)
+                    .getResultList();
+            System.out.println("-> Usuarios encontrados: " + objects3);
+
+            imprimirSeccion(17, "Ventas agrupadas por marca (SUM cantidad y subtotal)");
+            List<Object[]> objects4 = em.createQuery("""
+                    SELECT m.denominacion, SUM(d.cantidad), SUM(d.importeSubtotal) 
+                    FROM FacturaVentaDetalle d 
+                    JOIN d.listaPrecioArticulo lpa 
+                    JOIN lpa.articulo a 
+                    JOIN a.marca m 
+                    GROUP BY m.denominacion""", Object[].class).getResultList();
+            for (Object[] row : objects4) {
+                System.out.println("-> Marca: " + row[0] + " | Unidades: " + row[1] + " | Subtotal acumulado: $" + row[2]);
+            }
+
+            imprimirSeccion(18, "Marcas con al menos un artículo facturado (EXISTS)");
+            List<Marca> marcas = em.createQuery("""
+                    SELECT m 
+                    FROM Marca m 
+                    WHERE EXISTS (
+                        SELECT d 
+                        FROM FacturaVentaDetalle d 
+                        JOIN d.listaPrecioArticulo lpa 
+                        JOIN lpa.articulo a 
+                        WHERE a.marca = m
+                    )""", Marca.class).getResultList();
+            marcas.forEach(m -> System.out.println("-> Marca con ventas: " + m.getDenominacion()));
+
+            imprimirSeccion(19, "Artículos nunca facturados (NOT EXISTS)");
             List<Articulo> articulos2 = em.createQuery("""
-                                                   SELECT a
-                                                   FROM Articulo a
-                                                   WHERE NOT EXISTS (SELECT d
-                                                                    FROM FacturaVentaDetalle d
-                                                                    JOIN d.listaPrecioArticulo lpa
-                                                                    JOIN lpa.articulo a1
-                                                                    WHERE a1 = a)""", Articulo.class).getResultList();
+                    SELECT a 
+                    FROM Articulo a 
+                    WHERE NOT EXISTS (
+                        SELECT d 
+                        FROM FacturaVentaDetalle d 
+                        JOIN d.listaPrecioArticulo lpa 
+                        JOIN lpa.articulo a1 
+                        WHERE a1 = a
+                    )""", Articulo.class).getResultList();
+            articulos2.forEach(a -> System.out.println("-> Artículo sin ventas: " + a.getDenominacion()));
 
-            //Listar el número de factura, su importe total y una columna calculada
-            //llamada "Categoría" que clasifique la factura como:
-            //o "ALTO VALOR" si el importeTotal es mayor a $50,000.
-            //o "MEDIO VALOR" si el importeTotal está entre $10,000 y $50,000.
-            //o "BAJO VALOR" si el importeTotal es menor a $10,000. Ordenar los
-            //resultados de mayor a menor importe.
-
+            imprimirSeccion(20, "Categorización de facturas con CASE");
             List<Object[]> object5 = em.createQuery("""
-                                        SELECT f.numero, f.importeTotal, CASE 
-                                                                                WHEN f.importeTotal > :importe1 THEN 'ALTO VALOR'
-                                                                                WHEN f.importeTotal >= :importe2 THEN 'MEDIO VALOR'
-                                                                                ELSE 'BAJO VALOR'
-                                                                         END AS Categoria
-                                        FROM FacturaVenta f
-                                        ORDER BY f.importeTotal DESC""", Object[].class).setParameter("importe1", 50000.0).setParameter("importe2", 10000.0).getResultList();
-
+                    SELECT f.numero, f.importeTotal, 
+                           CASE 
+                               WHEN f.importeTotal > :importe1 THEN 'ALTO VALOR' 
+                               WHEN f.importeTotal >= :importe2 THEN 'MEDIO VALOR' 
+                               ELSE 'BAJO VALOR' 
+                           END AS Categoria 
+                    FROM FacturaVenta f 
+                    ORDER BY f.importeTotal DESC""", Object[].class)
+                    .setParameter("importe1", 50000.0)
+                    .setParameter("importe2", 10000.0)
+                    .getResultList();
+            for (Object[] row : object5) {
+                System.out.println("-> Factura N°: " + row[0] + " | Total: $" + row[1] + " | Categoría: " + row[2]);
+            }
 
             // 10. Confirmar transacción
             em.getTransaction().commit();
 
-
-
-
         } catch (Exception e) {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
-
                 System.out.println("UPPPSSS");
             }
             e.printStackTrace();
@@ -448,5 +427,14 @@ public class Main {
             em.close();
             emf.close();
         }
-}
+    }
+
+    // ==================================================================
+    // FUNCIÓN HELPER (va dentro de la clase Main, pero fuera del main)
+    // ==================================================================
+    private static void imprimirSeccion(int numero, String titulo) {
+        System.out.println("\n" + "=".repeat(80));
+        System.out.println("Consulta " + numero + ": " + titulo);
+        System.out.println("=".repeat(80));
+    }
 }
