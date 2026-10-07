@@ -8,7 +8,7 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @Setter
 @ToString(callSuper = true)
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
@@ -21,8 +21,4 @@ public class TipoMoneda extends AuditoriaApp{
     private String denominacion;
     @Column(nullable = false)
     private String simbolo;
-
-
-
-
 }

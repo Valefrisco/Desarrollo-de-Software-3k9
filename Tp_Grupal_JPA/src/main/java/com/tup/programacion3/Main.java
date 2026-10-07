@@ -1,6 +1,8 @@
 package com.tup.programacion3;
 
 import com.tup.programacion3.Entity.*;
+import com.tup.programacion3.DTOs.FacturaReporteDTO;
+import com.tup.programacion3.Repository.FacturaReporteRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
@@ -21,9 +23,9 @@ public class Main {
 
             LocalDateTime ahora = LocalDateTime.now();
 
-            // ==================================================================
+
             // 1. Instanciar y persistir Usuario (Auditoría)
-            // ==================================================================
+
             Usuario usuarioAdmin = new Usuario();
             usuarioAdmin.setUsuario("admin");
             usuarioAdmin.setClave("pass123");
@@ -31,9 +33,9 @@ public class Main {
             usuarioAdmin.setApellido("Desarrollo");
             em.persist(usuarioAdmin);
 
-            // ==================================================================
+
             // 2. Instanciar y persistir Punto de Venta
-            // ==================================================================
+
             PuntoVenta puntoVenta = new PuntoVenta();
             puntoVenta.setNumero(1);
             puntoVenta.setDescripcion("Punto de Venta Local Central");
@@ -45,9 +47,9 @@ public class Main {
             puntoVenta.setUsuarioModificacion(usuarioAdmin);
             em.persist(puntoVenta);
 
-            // ==================================================================
+
             // 3. Instanciar y persistir Rubro y Marca
-            // ==================================================================
+
             Rubro rubroBebidas = new Rubro();
             rubroBebidas.setCodigo(10);
             rubroBebidas.setDenominacion("Bebidas.");
@@ -66,9 +68,8 @@ public class Main {
             marcaGaseosa.setUsuarioModificacion(usuarioAdmin);
             em.persist(marcaGaseosa);
 
-            // ==================================================================
             // 4. Instanciar y persistir Artículos
-            // ==================================================================
+
             Articulo articulo1 = new Articulo();
             articulo1.setCodigo("ART-001");
             articulo1.setDenominacion("Gaseosa Cola 2.25L");
@@ -91,9 +92,9 @@ public class Main {
             articulo2.setUsuarioModificacion(usuarioAdmin);
             em.persist(articulo2);
 
-            // ==================================================================
+
             // 5. Instanciar y persistir Lista de Precios y sus Artículos
-            // ==================================================================
+
             ListaPrecio listaPrecio = new ListaPrecio();
             listaPrecio.setCodigo("LP-MAY");
             listaPrecio.setDenominacion("Lista Precios Mayorista");
@@ -123,16 +124,16 @@ public class Main {
             precioArt2.setUsuarioModificacion(usuarioAdmin);
             em.persist(precioArt2);
 
-            // ==================================================================
+
             // 6. Instanciar los datos obligatorios de la factura
-            // ==================================================================
-            Contacto contactoCliente = new Contacto("cliente@ejemplo.com", "1112345678", "44445555");
+
+            Contacto contactoCliente = new Contacto("valentinofriscolanti@gmail.com", "44445555", "1112345678");
             em.persist(contactoCliente);
 
-            Domicilio domicilioCliente = new Domicilio("123", "Av. Siempre Viva");
+            Domicilio domicilioCliente = new Domicilio("Av. Siempre Viva", "123");
             em.persist(domicilioCliente);
 
-            Cliente cliente = new Cliente("20-12345678-9", domicilioCliente, contactoCliente, "Cliente consumidor final");
+            Cliente cliente = new Cliente("20-12345678-9", "Cliente consumidor final", contactoCliente, domicilioCliente);
             cliente.setFechaAlta(ahora);
             cliente.setFechaaModificar(ahora);
             cliente.setUsuarioCarga(usuarioAdmin);
@@ -146,20 +147,28 @@ public class Main {
             condicionIva.setUsuarioModificacion(usuarioAdmin);
             em.persist(condicionIva);
 
-            TipoMoneda tipoMoneda = new TipoMoneda("PES", "$", "Peso argentino");
+            TipoMoneda tipoMoneda = new TipoMoneda("PES", "Peso argentino", "$");
             tipoMoneda.setFechaAlta(ahora);
             tipoMoneda.setFechaaModificar(ahora);
             tipoMoneda.setUsuarioCarga(usuarioAdmin);
             tipoMoneda.setUsuarioModificacion(usuarioAdmin);
             em.persist(tipoMoneda);
 
-            // ==================================================================
+
             // 7. Instanciar Cabecera de FacturaVenta
-            // ==================================================================
+
             FacturaVenta factura = new FacturaVenta();
             factura.setNumero(1001L);
             factura.setFechaEmision(ahora);
             factura.setPuntoVenta(puntoVenta);
+
+
+            // Sin esto, el JOIN f.condicionIva del reporte DTO descarta la factura (inner join con null).
+            factura.setCliente(cliente);
+            factura.setCondicionIva(condicionIva);
+            factura.setTipoMoneda(tipoMoneda);
+
+
             factura.setEstado("EMITIDA");
             factura.setImporteCobrado(0.0);
             factura.setImporteSaldo(7000.0);
@@ -169,9 +178,7 @@ public class Main {
             factura.setUsuarioCarga(usuarioAdmin);
             factura.setUsuarioModificacion(usuarioAdmin);
 
-            // ==================================================================
             // 8. Instanciar Detalles y asociar usando el método helper
-            // ==================================================================
             FacturaVentaDetalle detalle1 = new FacturaVentaDetalle();
             detalle1.setListaPrecioArticulo(precioArt1);
             detalle1.setDescripcion("Gaseosa Cola 2.25L - Pack x2");
@@ -194,14 +201,10 @@ public class Main {
             detalle2.setImporteSubtotal(2000.0);
             factura.addDetalle(detalle2);
 
-            // ==================================================================
             // 9. Persistir cabecera FacturaVenta
-            // ==================================================================
             em.persist(factura);
 
-            // ==================================================================
-            // AQUÍ COMIENZAN LAS CONSULTAS JPQL ORGANIZADAS CON IMPRESIÓN
-            // ==================================================================
+            // CONSULTAS JPQL
 
             imprimirSeccion(1, "Lista completa de todas las facturas");
             List<FacturaVenta> facturas1 = em.createQuery("""
@@ -413,6 +416,18 @@ public class Main {
                 System.out.println("-> Factura N°: " + row[0] + " | Total: $" + row[1] + " | Categoría: " + row[2]);
             }
 
+            imprimirSeccion(21, "Reporte con DTO (SELECT new)");
+            FacturaReporteRepository repo = new FacturaReporteRepository(em);
+            List<FacturaReporteDTO> reporte = repo.obtenerReporte();
+            reporte.forEach(d -> System.out.println(
+                    "-> Factura N° " + d.getNumeroFactura() +
+                            " | " + d.getFechaEmision() +
+                            " | Cliente: " + d.getClienteDenominacion() +
+                            " | IVA: " + d.getCondicionIva() +
+                            " | PV: " + d.getPuntoVentaDescripcion() +
+                            " | Total: $" + d.getImporteTotal() +
+                            " | Items: " + d.getCantidadItems()));
+
             // 10. Confirmar transacción
             em.getTransaction().commit();
 
@@ -427,11 +442,10 @@ public class Main {
             em.close();
             emf.close();
         }
+
     }
 
-    // ==================================================================
     // FUNCIÓN HELPER (va dentro de la clase Main, pero fuera del main)
-    // ==================================================================
     private static void imprimirSeccion(int numero, String titulo) {
         System.out.println("\n" + "=".repeat(80));
         System.out.println("Consulta " + numero + ": " + titulo);

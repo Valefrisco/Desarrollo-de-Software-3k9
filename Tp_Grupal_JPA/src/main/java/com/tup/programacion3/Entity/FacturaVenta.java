@@ -1,10 +1,10 @@
 package com.tup.programacion3.Entity;
+
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -13,7 +13,7 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @Setter
 @ToString(callSuper = true, exclude = "detalles")
-@EqualsAndHashCode(exclude = "detalles")
+@EqualsAndHashCode(callSuper = true, exclude = "detalles")
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
@@ -22,9 +22,22 @@ public class FacturaVenta extends AuditoriaApp {
     private Long numero;
     @Column(nullable = false)
     private LocalDateTime fechaEmision;
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(nullable = false)
     private PuntoVenta puntoVenta;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cliente_id", nullable = true)
+    private Cliente cliente;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "condicion_iva_id", nullable = false)
+    private CondicionIva condicionIva;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tipo_moneda_id", nullable = false)
+    private TipoMoneda tipoMoneda;
+
     private double importeCobrado;
     private double importeSaldo;
     @Column(nullable = false)
@@ -39,17 +52,17 @@ public class FacturaVenta extends AuditoriaApp {
     @Temporal(TemporalType.DATE)
     private Date fechaAnulacion;
     private String observaciones;
-    @OneToMany(mappedBy = "factura", cascade = CascadeType.ALL)
+
+    @Builder.Default
+    @OneToMany(mappedBy = "factura", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FacturaVentaDetalle> detalles = new ArrayList<>();
+    // <<< FIN AGREGADO
 
-
-    public void addDetalle(FacturaVentaDetalle detalle) { //NO PIDE HACER ESTE METODO PERO BUENO LO AGREGUE PORQUE PARECE LOGICO
+    public void addDetalle(FacturaVentaDetalle detalle) {
         if (this.detalles == null) {
             this.detalles = new ArrayList<>();
         }
         this.detalles.add(detalle);
         detalle.setFactura(this);
     }
-
-
 }
