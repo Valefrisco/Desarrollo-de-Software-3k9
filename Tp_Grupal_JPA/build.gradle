@@ -32,6 +32,9 @@ dependencies {
 
     compileOnly 'org.projectlombok:lombok:1.18.36'
     annotationProcessor 'org.projectlombok:lombok:1.18.36'
+
+    // iText 7 Core para generación de PDF
+    implementation 'com.itextpdf:itext7-core:7.2.5'
 }
 
 test {
