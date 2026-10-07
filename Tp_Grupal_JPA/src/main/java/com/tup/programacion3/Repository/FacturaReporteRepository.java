@@ -1,36 +1,46 @@
 package com.tup.programacion3.Repository;
 
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
-import jakarta.persistence.EntityManager;   // o javax.persistence si tu proyecto usa javax
-import java.util.List;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
+import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Repository
 public class FacturaReporteRepository {
 
-    private final EntityManager em;
+    @PersistenceContext
+    private EntityManager em;
 
-    public FacturaReporteRepository(EntityManager em) {
-        this.em = em;
-    }
+    public List<FacturaReporteDTO> buscarFacturasFiltradas(
+            LocalDateTime fechaDesde, LocalDateTime fechaHasta, String estado, Double montoMinimo) {
 
-    public List<FacturaReporteDTO> obtenerReporte() {
-        String jpql =
+        StringBuilder jpql = new StringBuilder(
                 "SELECT new com.tup.programacion3.DTOs.FacturaReporteDTO(" +
-                        "  f.numero, " +
-                        "  f.fechaEmision, " +
-                        "  COALESCE(c.denominacion, 'Consumidor Final'), " +
-                        "  ci.denominacion, " +
-                        "  pv.descripcion, " +
-                        "  f.importeTotal, " +
-                        "  COUNT(d) " +
-                        ") " +
+                        " f.numero, f.fechaEmision, COALESCE(c.denominacion, 'Consumidor Final'), " +
+                        " ci.denominacion, pv.descripcion, f.importeTotal, COUNT(d)) " +
                         "FROM FacturaVenta f " +
                         "LEFT JOIN f.cliente c " +
                         "JOIN f.condicionIva ci " +
                         "JOIN f.puntoVenta pv " +
                         "LEFT JOIN f.detalles d " +
-                        "GROUP BY f.id, f.numero, f.fechaEmision, c.denominacion, " +
-                        "         ci.denominacion, pv.descripcion, f.importeTotal";
+                        "WHERE 1=1 ");
 
-        return em.createQuery(jpql, FacturaReporteDTO.class).getResultList();
+        Map<String, Object> params = new HashMap<>();
+        if (fechaDesde != null) { jpql.append("AND f.fechaEmision >= :fechaDesde "); params.put("fechaDesde", fechaDesde); }
+        if (fechaHasta != null) { jpql.append("AND f.fechaEmision <= :fechaHasta "); params.put("fechaHasta", fechaHasta); }
+        if (estado != null && !estado.isBlank()) { jpql.append("AND f.estado = :estado "); params.put("estado", estado); }
+        if (montoMinimo != null) { jpql.append("AND f.importeTotal >= :montoMinimo "); params.put("montoMinimo", montoMinimo); }
+
+        jpql.append("GROUP BY f.id, f.numero, f.fechaEmision, c.denominacion, ci.denominacion, pv.descripcion, f.importeTotal");
+
+        TypedQuery<FacturaReporteDTO> query = em.createQuery(jpql.toString(), FacturaReporteDTO.class);
+        params.forEach(query::setParameter);
+        return query.getResultList();
     }
 }

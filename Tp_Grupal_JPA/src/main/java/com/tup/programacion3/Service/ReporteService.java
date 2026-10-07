@@ -13,7 +13,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.stereotype.Service;
 
+@Service
 public class ReporteService {
 
     // 1. Generar TXT separado por tabulaciones (abrible en Excel)
@@ -28,8 +30,8 @@ public class ReporteService {
                     .append(d.getClienteDenominacion() != null ? d.getClienteDenominacion() : "").append('\t')
                     .append(d.getCondicionIva() != null ? d.getCondicionIva() : "").append('\t')
                     .append(d.getPuntoVentaDescripcion() != null ? d.getPuntoVentaDescripcion() : "").append('\t')
-                    .append(d.getImporteTotal() != null ? d.getImporteTotal() : "").append('\t')
-                    .append(d.getCantidadItems() != null ? d.getCantidadItems() : "").append('\n');
+                    .append(d.getImporteTotal()).append('\t')
+                    .append(d.getCantidadItems()).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
@@ -67,14 +69,14 @@ public class ReporteService {
                 table.addCell(String.valueOf(d.getClienteDenominacion() != null ? d.getClienteDenominacion() : ""));
                 table.addCell(String.valueOf(d.getCondicionIva() != null ? d.getCondicionIva() : ""));
                 table.addCell(String.valueOf(d.getPuntoVentaDescripcion() != null ? d.getPuntoVentaDescripcion() : ""));
-                table.addCell(String.valueOf(d.getImporteTotal() != null ? d.getImporteTotal() : ""));
-                table.addCell(String.valueOf(d.getCantidadItems() != null ? d.getCantidadItems() : ""));
+                table.addCell(String.valueOf(d.getImporteTotal()));
+                table.addCell(String.valueOf(d.getCantidadItems()));
             }
 
             document.add(table);
             document.close();
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException("Error al generar el PDF", e);
         }
 
         return baos.toByteArray();
