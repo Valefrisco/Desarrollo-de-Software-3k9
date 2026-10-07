@@ -1,6 +1,16 @@
 package com.tup.programacion3.Entity;
 
 import jakarta.persistence.*;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
+
+@SuperBuilder
+@Getter
+@Setter
+@ToString(callSuper = true)
+@EqualsAndHashCode
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "MARCAS")
 public class Marca extends AuditoriaApp{
@@ -9,36 +19,8 @@ public class Marca extends AuditoriaApp{
 @Column(nullable = false)
     private Integer codigo;
 
-    public Marca() {
-    }
 
-    public Marca(String denominacion, Integer codigo) {
-        super();
-        this.denominacion = denominacion;
-        this.codigo = codigo;
-    }
 
-    public String getDenominacion() {
-        return denominacion;
-    }
 
-    public void setDenominacion(String denominacion) {
-        this.denominacion = denominacion;
-    }
 
-    public Integer getCodigo() {
-        return codigo;
-    }
-
-    public void setCodigo(Integer codigo) {
-        this.codigo = codigo;
-    }
-
-    @Override
-    public String toString() {
-        return "Marca{" +
-                "denominacion='" + denominacion + '\'' +
-                ", codigo=" + codigo +
-                "} " + super.toString();
-    }
 }
