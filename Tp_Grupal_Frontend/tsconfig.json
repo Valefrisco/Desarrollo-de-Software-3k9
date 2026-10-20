@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    // A que version de JavaScript se traduce el TypeScript (ES2020 la entienden todos los navegadores actuales)
+    "target": "ES2020",
+    // Usar import/export nativos del navegador (<script type="module">)
+    "module": "ES2020",
+    "moduleResolution": "bundler",
+    // Tipos disponibles: JavaScript estandar + el DOM (document, HTMLElement, fetch...)
+    "lib": ["ES2020", "DOM"],
+    // De donde lee los .ts y donde deja los .js compilados
+    "rootDir": "src",
+    "outDir": "dist",
+    // Chequeos estrictos de tipos (ej. no permite usar algo que podria ser null sin verificar)
+    "strict": true,
+    // Genera .map para poder depurar el .ts original desde el navegador
+    "sourceMap": true
+  },
+  "include": ["src"]
+}
