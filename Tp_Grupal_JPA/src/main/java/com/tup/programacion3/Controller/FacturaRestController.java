@@ -16,6 +16,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/facturas")
+// CORS: permite que el frontend (que corre en otro origen, ej. file:// o localhost:5500)
+// llame a esta API desde el navegador. "*" = cualquier origen; valido para desarrollo.
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class FacturaRestController {
 
