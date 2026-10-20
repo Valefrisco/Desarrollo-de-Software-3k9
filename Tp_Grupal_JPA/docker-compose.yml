@@ -3,8 +3,8 @@ services:
     image: postgres:15
     container_name: facturacion_db_container
     environment:
-      POSTGRES_USER: underUTN
-      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: postgres      # mismo usuario que application.properties
+      POSTGRES_PASSWORD: "1234"    # misma clave que application.properties
       POSTGRES_DB: underBase
       TZ: America/Argentina/Buenos_Aires    # <-- Agregamos esto
     ports:
