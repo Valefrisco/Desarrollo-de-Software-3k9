@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facturación de Ventas</title>
+    <style>
+        :root {
+            --fondo: #f4f5f7;
+            --tarjeta: #ffffff;
+            --texto: #1f2328;
+            --texto-suave: #5b6470;
+            --borde: #d8dce1;
+            --primario: #1f6feb;
+            --peligro: #c62828;
+            --aviso: #b26a00;
+            --ok: #1a7f37;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: var(--fondo);
+            color: var(--texto);
+        }
+        header { background: var(--texto); color: #fff; padding: 16px 24px; }
+        header h1 { margin: 0; font-size: 20px; }
+        main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 24px; }
+        section { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 8px; padding: 20px; }
+        h2 { margin: 0 0 16px; font-size: 17px; }
+        h3 { margin: 20px 0 12px; font-size: 15px; }
+        .fila { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+        label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-suave); }
+        input, select {
+            font: inherit; font-size: 14px; padding: 7px 9px; min-width: 130px;
+            border: 1px solid var(--borde); border-radius: 6px; background: #fff; color: var(--texto);
+        }
+        label.ancho input { min-width: 260px; }
+        button {
+            font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 6px;
+            border: 1px solid var(--borde); background: #fff; color: var(--texto); cursor: pointer;
+        }
+        button.primario { background: var(--primario); border-color: var(--primario); color: #fff; }
+        button.peligro { color: var(--peligro); border-color: var(--peligro); }
+        button.aviso { color: var(--aviso); border-color: var(--aviso); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tabla-contenedor { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+        th { font-size: 12px; text-transform: uppercase; color: var(--texto-suave); }
+        td.numero, th.numero { text-align: right; }
+        td.vacio { text-align: center; color: var(--texto-suave); padding: 16px; }
+        .acciones { display: flex; gap: 6px; }
+        .estado { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+        .estado.EMITIDA { background: #dafbe1; color: var(--ok); }
+        .estado.ANULADA { background: #ffebe9; color: var(--peligro); }
+        .pie-formulario { margin-top: 16px; display: flex; justify-content: flex-end; }
+        #mensaje { display: none; padding: 12px 16px; border-radius: 6px; font-size: 14px; }
+        #mensaje.exito { display: block; background: #dafbe1; color: var(--ok); }
+        #mensaje.error { display: block; background: #ffebe9; color: var(--peligro); }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Facturación de Ventas</h1>
+</header>
+
+<main>
+    <!-- Mensajes de exito o error (los muestra app.ts) -->
+    <div id="mensaje" role="status"></div>
+
+    <!-- ============================================================
+         SECCION 1: Formulario de busqueda con filtros (GET)
+         ============================================================ -->
+    <section>
+        <h2>Buscar comprobantes</h2>
+        <form id="form-filtros" class="fila">
+            <label>Fecha desde
+                <input type="date" id="filtro-fecha-desde">
+            </label>
+            <label>Fecha hasta
+                <input type="date" id="filtro-fecha-hasta">
+            </label>
+            <label>Estado
+                <select id="filtro-estado">
+                    <option value="">Todos</option>
+                    <option value="EMITIDA">Emitida</option>
+                    <option value="ANULADA">Anulada</option>
+                </select>
+            </label>
+            <label>Monto mínimo
+                <input type="number" id="filtro-monto-minimo" min="0" step="0.01" placeholder="$">
+            </label>
+            <button type="submit" class="primario">Buscar</button>
+            <button type="button" id="btn-limpiar-filtros">Limpiar</button>
+        </form>
+    </section>
+
+    <!-- ============================================================
+         SECCION 2: Alta de factura con tabla dinamica de renglones (POST)
+         ============================================================ -->
+    <section>
+        <h2>Nueva factura</h2>
+        <form id="form-factura">
+            <h3>Cabecera</h3>
+            <div class="fila">
+                <label>Punto de venta (ID)
+                    <input type="number" id="punto-venta-id" min="1" value="1" required>
+                </label>
+                <label>Cliente (ID)
+                    <input type="number" id="cliente-id" min="1" value="1" placeholder="vacío = Consumidor Final">
+                </label>
+                <label>Condición IVA (ID)
+                    <input type="number" id="condicion-iva-id" min="1" value="1" required>
+                </label>
+                <label>Moneda (ID)
+                    <input type="number" id="tipo-moneda-id" min="1" value="1" required>
+                </label>
+                <label>Lista de precios (ID)
+                    <input type="number" id="lista-precio-id" min="1" value="1" required>
+                </label>
+                <label class="ancho">Observaciones
+                    <input type="text" id="observaciones" maxlength="255">
+                </label>
+            </div>
+
+            <h3>Renglones</h3>
+            <div class="fila">
+                <label>Artículo (ID)
+                    <input type="number" id="item-articulo-id" min="1">
+                </label>
+                <label>Cantidad
+                    <input type="number" id="item-cantidad" min="0.01" step="0.01">
+                </label>
+                <label>Bonificación %
+                    <input type="number" id="item-bonificacion" min="0" max="100" step="0.01" placeholder="0">
+                </label>
+                <button type="button" id="btn-agregar-item">Agregar renglón</button>
+            </div>
+
+            <div class="tabla-contenedor">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Artículo (ID)</th>
+                        <th class="numero">Cantidad</th>
+                        <th class="numero">Bonificación %</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody id="items-body">
+                    <!-- Lo completa app.ts a partir de los renglones en memoria -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pie-formulario">
+                <button type="submit" class="primario" id="btn-emitir">Emitir factura</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ============================================================
+         SECCION 3: Listado de comprobantes con acciones por fila (PUT / DELETE)
+         ============================================================ -->
+    <section>
+        <h2>Comprobantes registrados</h2>
+        <div class="tabla-contenedor">
+            <table>
+                <thead>
+                <tr>
+                    <th>N°</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Cond. IVA</th>
+                    <th>Punto de venta</th>
+                    <th class="numero">Ítems</th>
+                    <th class="numero">Total</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+                </thead>
+                <tbody id="facturas-body">
+                <!-- Lo completa app.ts con lo que devuelve GET /api/facturas -->
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<!-- El navegador ejecuta el JavaScript COMPILADO (dist/), no el .ts -->
+<script type="module" src="dist/app.js"></script>
+</body>
+</html>
