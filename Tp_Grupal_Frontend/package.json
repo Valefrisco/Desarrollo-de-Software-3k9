@@ -1,0 +1,15 @@
+{
+  "name": "tp-grupal-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend CRUD de facturas de venta (TP Desarrollo de Software)",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "http-server . -p 5500 -c-1"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "typescript": "^5.6.3"
+  }
+}

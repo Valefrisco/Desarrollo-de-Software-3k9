@@ -4,3 +4,7 @@
 build/
 **/build/
 **/.gradle/
+
+# Reportes que genera el DataLoader en cada arranque
+reporte-facturas.pdf
+reporte-facturas.txt

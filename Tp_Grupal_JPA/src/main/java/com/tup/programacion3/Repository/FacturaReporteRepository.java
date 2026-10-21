@@ -22,8 +22,8 @@ public class FacturaReporteRepository {
 
         StringBuilder jpql = new StringBuilder(
                 "SELECT new com.tup.programacion3.DTOs.FacturaReporteDTO(" +
-                        " f.numero, f.fechaEmision, COALESCE(c.denominacion, 'Consumidor Final'), " +
-                        " ci.denominacion, pv.descripcion, f.importeTotal, COUNT(d)) " +
+                        " f.id, f.numero, f.fechaEmision, COALESCE(c.denominacion, 'Consumidor Final'), " +
+                        " ci.denominacion, pv.descripcion, f.importeTotal, f.estado, COUNT(d)) " +
                         "FROM FacturaVenta f " +
                         "LEFT JOIN f.cliente c " +
                         "JOIN f.condicionIva ci " +
@@ -37,7 +37,7 @@ public class FacturaReporteRepository {
         if (estado != null && !estado.isBlank()) { jpql.append("AND f.estado = :estado "); params.put("estado", estado); }
         if (montoMinimo != null) { jpql.append("AND f.importeTotal >= :montoMinimo "); params.put("montoMinimo", montoMinimo); }
 
-        jpql.append("GROUP BY f.id, f.numero, f.fechaEmision, c.denominacion, ci.denominacion, pv.descripcion, f.importeTotal");
+        jpql.append("GROUP BY f.id, f.numero, f.fechaEmision, c.denominacion, ci.denominacion, pv.descripcion, f.importeTotal, f.estado");
 
         TypedQuery<FacturaReporteDTO> query = em.createQuery(jpql.toString(), FacturaReporteDTO.class);
         params.forEach(query::setParameter);
