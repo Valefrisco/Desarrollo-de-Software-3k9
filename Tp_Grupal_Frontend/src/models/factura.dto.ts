@@ -5,7 +5,7 @@
 // =====================================================================
 
 /** Estados posibles de una factura (en Java es un String con estos valores). */
-export type EstadoFactura = 'EMITIDA' | 'ANULADA';
+export type EstadoFactura = 'BORRADOR' | 'EMITIDA' | 'ANULADA';
 
 // ---------------------------------------------------------------------
 // Salida: lo que DEVUELVE la API
@@ -14,7 +14,7 @@ export type EstadoFactura = 'EMITIDA' | 'ANULADA';
 /** Espejo de FacturaReporteDTO.java (respuesta de GET, POST y PUT). */
 export interface FacturaReporteDTO {
     id: number;
-    numeroFactura: number;
+    numeroFactura: number | null;  // null mientras es BORRADOR (se numera al emitir)
     fechaEmision: string;          // LocalDateTime -> texto ISO, ej. "2026-10-20T16:53:14"
     clienteDenominacion: string;
     condicionIva: string;
@@ -22,6 +22,21 @@ export interface FacturaReporteDTO {
     importeTotal: number;
     estado: EstadoFactura;
     cantidadItems: number;
+}
+
+/** Espejo de FacturaCompletaDTO.java (respuesta de GET /api/facturas/{id}, para editar). */
+export interface FacturaCompletaDTO {
+    id: number;
+    numeroFactura: number | null;
+    estado: EstadoFactura;
+    puntoVentaId: number;
+    clienteId: number | null;      // null = Consumidor Final
+    condicionIvaId: number;
+    tipoMonedaId: number;
+    listaPrecioId: number | null;
+    observaciones: string | null;
+    importeTotal: number;
+    detalles: FacturaDetalleRequestDTO[];
 }
 
 /** Espejo de ErrorDTO.java (cuerpo de las respuestas 400, 404 y 409). */
@@ -47,11 +62,11 @@ export interface FacturaDetalleRequestDTO {
 /** Espejo de FacturaRequestDTO.java (cabecera + renglones). */
 export interface FacturaRequestDTO {
     puntoVentaId?: number;
-    clienteId?: number;            // sin cliente = Consumidor Final
+    clienteId?: number | null;     // null = Consumidor Final (en PUT, sin la clave = no cambia)
     condicionIvaId?: number;
     tipoMonedaId?: number;
     listaPrecioId?: number;
-    estado?: EstadoFactura;        // solo en PUT (ej. 'ANULADA')
+    estado?: EstadoFactura;        // POST: BORRADOR o EMITIDA. PUT: EMITIDA (emitir) o ANULADA
     observaciones?: string;
     detalles?: FacturaDetalleRequestDTO[];
 }
@@ -66,4 +81,32 @@ export interface FacturaFiltrosDTO {
     fechaHasta?: string;           // formato "AAAA-MM-DD"
     estado?: EstadoFactura;
     montoMinimo?: number;
+}
+
+// ---------------------------------------------------------------------
+// Catalogos para los desplegables: GET /api/catalogos
+// ---------------------------------------------------------------------
+
+/** Espejo de OpcionDTO.java: el ID que viaja en el JSON y el nombre que se muestra. */
+export interface OpcionDTO {
+    id: number;
+    nombre: string;
+}
+
+/** Espejo de ArticuloPrecioDTO.java: un articulo con su precio en una lista. */
+export interface ArticuloPrecioDTO {
+    listaPrecioId: number;
+    articuloId: number;
+    nombre: string;
+    precio: number;
+}
+
+/** Espejo de CatalogosDTO.java. */
+export interface CatalogosDTO {
+    puntosVenta: OpcionDTO[];
+    clientes: OpcionDTO[];
+    condicionesIva: OpcionDTO[];
+    monedas: OpcionDTO[];
+    listasPrecio: OpcionDTO[];
+    articulos: ArticuloPrecioDTO[];
 }
