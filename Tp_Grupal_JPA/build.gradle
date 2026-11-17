@@ -34,6 +34,9 @@ dependencies {
 
     // Pruebas
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // ARCA
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
 }
 
 test {
