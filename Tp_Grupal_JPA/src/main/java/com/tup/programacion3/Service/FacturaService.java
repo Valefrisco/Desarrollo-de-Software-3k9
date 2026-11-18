@@ -31,10 +31,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FacturaService {
 
-    // Ciclo de vida: BORRADOR -> EMITIDA -> ANULADA
-    // (o directo EMITIDA -> ANULADA si se emite en el alta, como antes).
+    // Ciclo de vida: BORRADOR -> EMITIDA -> FACTURADA
+    //                                    \-> ANULADA
+    // FACTURADA = ARCA autorizo el comprobante y le dio CAE (ver FacturacionArcaService).
+    // Desde ahi la factura es de solo lectura: no se edita, no se anula y no se borra.
     public static final String ESTADO_BORRADOR = "BORRADOR";
     public static final String ESTADO_EMITIDA = "EMITIDA";
+    public static final String ESTADO_FACTURADA = "FACTURADA";
     public static final String ESTADO_ANULADA = "ANULADA";
 
     // Los precios de lista son finales (IVA incluido). Es la misma regla que usa
@@ -79,7 +82,7 @@ public class FacturaService {
         // La factura no guarda la lista de precios: se deduce de sus renglones,
         // porque todos se cargan con la misma lista (ver cargarDetalles).
         Long listaPrecioId = f.getDetalles().isEmpty() ? null
-                : f.getDetalles().get(0).getListaPrecioArticulo().getListaPrecio().getId();
+                : f.getDetalles().getFirst().getListaPrecioArticulo().getListaPrecio().getId();
 
         return new FacturaCompletaDTO(
                 f.getId(),
@@ -92,7 +95,13 @@ public class FacturaService {
                 listaPrecioId,
                 f.getObservaciones(),
                 f.getImporteTotal(),
-                renglones);
+                renglones,
+                f.getCae(),
+                f.getCaeFechaVencimiento() != null
+                        ? new java.sql.Date(f.getCaeFechaVencimiento().getTime()).toLocalDate() : null,
+                f.getNumeroArca(),
+                f.getFechaFacturacion(),
+                f.getMotivoRechazo());
     }
 
     // =====================================================================
@@ -169,6 +178,12 @@ public class FacturaService {
     public FacturaReporteDTO actualizar(Long id, FacturaRequestDTO dto) {
         FacturaVenta factura = buscarPorId(facturaVentaRepository, id, "Factura");
         String estadoActual = factura.getEstado();
+
+        // 0) Una factura con CAE ya esta registrada en ARCA: es de solo lectura
+        if (ESTADO_FACTURADA.equals(estadoActual)) {
+            throw new IllegalStateException(mensajeFacturada(factura, "modificar ni anular"));
+        }
+
         String nuevoEstado = normalizarEstado(dto.getEstado());
 
         Usuario usuario = usuarioActual();
@@ -270,6 +285,9 @@ public class FacturaService {
     @Transactional
     public void eliminar(Long id) {
         FacturaVenta factura = buscarPorId(facturaVentaRepository, id, "Factura");
+        if (ESTADO_FACTURADA.equals(factura.getEstado())) {
+            throw new IllegalStateException(mensajeFacturada(factura, "eliminar"));
+        }
         // CascadeType.ALL + orphanRemoval: se borran tambien todos sus detalles
         facturaVentaRepository.delete(factura);
     }
@@ -342,6 +360,10 @@ public class FacturaService {
             return null;
         }
         String normalizado = estado.trim().toUpperCase();
+        if (ESTADO_FACTURADA.equals(normalizado)) {
+            throw new IllegalArgumentException("El estado FACTURADA no se asigna a mano: se obtiene facturando en ARCA "
+                    + "(POST /api/facturas/facturar-emitidas)");
+        }
         if (!List.of(ESTADO_BORRADOR, ESTADO_EMITIDA, ESTADO_ANULADA).contains(normalizado)) {
             throw new IllegalArgumentException("Estado no valido: " + estado
                     + ". Valores permitidos: " + ESTADO_BORRADOR + ", " + ESTADO_EMITIDA + ", " + ESTADO_ANULADA);
@@ -374,7 +396,14 @@ public class FacturaService {
                 f.getPuntoVenta().getDescripcion(),
                 f.getImporteTotal(),
                 f.getEstado(),
-                f.getDetalles().size());
+                f.getDetalles().size(),
+                f.getCae(),
+                f.getNumeroArca());
+    }
+
+    private static String mensajeFacturada(FacturaVenta f, String accion) {
+        return "La factura " + f.getNumero() + " ya fue facturada en ARCA (CAE " + f.getCae()
+                + "): no se puede " + accion;
     }
 
     private static double redondear(double valor) {

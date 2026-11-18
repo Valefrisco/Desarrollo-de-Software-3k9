@@ -24,6 +24,8 @@
             --anulada-fondo: #f8e6e4;
             --borrador: #8a6a12;
             --borrador-fondo: #f5eed9;
+            --facturada: #1f5f8b;       /* con CAE de ARCA: solo lectura */
+            --facturada-fondo: #e2eef7;
             --radio: 6px;
         }
         * { box-sizing: border-box; }
@@ -181,6 +183,9 @@
         .estado.BORRADOR { background: var(--borrador-fondo); color: var(--borrador); }
         .estado.EMITIDA { background: var(--emitida-fondo); color: var(--emitida); }
         .estado.ANULADA { background: var(--anulada-fondo); color: var(--anulada); }
+        .estado.FACTURADA { background: var(--facturada-fondo); color: var(--facturada); }
+        .dato-arca { display: block; margin-top: 3px; font-size: 11px; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+        #mensaje { white-space: pre-line; }   /* el resumen de facturacion usa saltos de linea */
 
         /* ===== El comprobante (formulario de alta / edicion) ===== */
         .comprobante {
@@ -279,6 +284,7 @@
             <!-- data-vista: que muestra cada modulo (un estado, o todos en el historico) -->
             <button type="button" data-vista="BORRADOR">Borradores <span class="contador" id="contador-BORRADOR">0</span></button>
             <button type="button" data-vista="EMITIDA">Emitidas <span class="contador" id="contador-EMITIDA">0</span></button>
+            <button type="button" data-vista="FACTURADA">Facturadas <span class="contador" id="contador-FACTURADA">0</span></button>
             <button type="button" data-vista="ANULADA">Anuladas <span class="contador" id="contador-ANULADA">0</span></button>
             <button type="button" data-vista="HISTORICO">Histórico <span class="contador" id="contador-HISTORICO">0</span></button>
         </nav>
@@ -301,6 +307,8 @@
                             <h1 id="titulo-listado">Histórico</h1>
                             <p id="descripcion-listado">Todos los comprobantes, en cualquier estado.</p>
                         </div>
+                        <!-- Manda a ARCA (homologacion) todas las EMITIDA: las aprobadas pasan a FACTURADA -->
+                        <button type="button" class="boton primario" id="btn-facturar-emitidas">Facturar emitidas en ARCA</button>
                     </div>
 
                     <!-- Filtros de busqueda (GET con parametros) -->
@@ -317,6 +325,7 @@
                                 <option value="">Todos</option>
                                 <option value="BORRADOR">Borrador</option>
                                 <option value="EMITIDA">Emitida</option>
+                                <option value="FACTURADA">Facturada</option>
                                 <option value="ANULADA">Anulada</option>
                             </select>
                         </label>
@@ -426,8 +435,8 @@
                                     <tfoot>
                                     <tr class="agregar">
                                         <td><select id="item-articulo-id" aria-label="Artículo"></select></td>
-                                        <td class="numero"><input type="number" id="item-cantidad" min="0.01" step="0.01" placeholder="Cantidad" aria-label="Cantidad"></td>
-                                        <td></td>
+                                        <td class="numero"><input type="number" id="item-cantidad" min="1" step="1" inputmode="numeric" placeholder="Cantidad" aria-label="Cantidad"></td>
+                                        <td class="numero" id="item-precio">—</td>
                                         <td class="numero"><input type="number" id="item-bonificacion" min="0" max="100" step="0.01" placeholder="0" aria-label="Bonificación %"></td>
                                         <td></td>
                                         <td><button type="button" class="boton chico" id="btn-agregar-item">Agregar</button></td>

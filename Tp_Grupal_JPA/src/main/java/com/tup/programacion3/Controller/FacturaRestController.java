@@ -3,7 +3,9 @@ package com.tup.programacion3.Controller;
 import com.tup.programacion3.DTOs.FacturaCompletaDTO;
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
 import com.tup.programacion3.DTOs.FacturaRequestDTO;
+import com.tup.programacion3.DTOs.ResultadoFacturacionDTO;
 import com.tup.programacion3.Service.FacturaService;
+import com.tup.programacion3.Service.FacturacionArcaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,7 @@ import java.util.List;
 public class FacturaRestController {
 
     private final FacturaService facturaService;
+    private final FacturacionArcaService facturacionArcaService;
 
     @GetMapping
     public List<FacturaReporteDTO> listar(
@@ -54,7 +57,7 @@ public class FacturaRestController {
 
     // PUT /api/facturas/{id} -> edita un BORRADOR (y lo emite si viene "estado": "EMITIDA"),
     // edita una EMITIDA (conserva su numero) o la anula ("estado": "ANULADA").
-    // Responde 200 OK; 409 si la factura esta ANULADA o el cambio no se permite.
+    // Responde 200 OK; 409 si la factura esta ANULADA o FACTURADA, o el cambio no se permite.
     @PutMapping("/{id}")
     public ResponseEntity<FacturaReporteDTO> actualizar(@PathVariable Long id,
                                                         @RequestBody FacturaRequestDTO request) {
@@ -62,7 +65,16 @@ public class FacturaRestController {
         return ResponseEntity.ok(actualizada);
     }
 
+    // POST /api/facturas/facturar-emitidas -> pide el CAE a ARCA (homologacion) para todas las
+    // facturas EMITIDA. Las aprobadas pasan a FACTURADA (solo lectura); las rechazadas siguen
+    // EMITIDA con el motivo. Responde 200 con el resumen, aunque alguna haya sido rechazada.
+    @PostMapping("/facturar-emitidas")
+    public ResultadoFacturacionDTO facturarEmitidas() {
+        return facturacionArcaService.facturarEmitidas();
+    }
+
     // DELETE /api/facturas/{id} -> borra la factura y sus detalles. Responde 204 No Content.
+    // 409 si la factura ya esta FACTURADA en ARCA.
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         facturaService.eliminar(id);

@@ -1,5 +1,7 @@
 package com.tup.programacion3.DTOs;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -19,5 +21,11 @@ public record FacturaCompletaDTO(
         Long listaPrecioId,
         String observaciones,
         double importeTotal,
-        List<FacturaDetalleRequestDTO> detalles) {
+        List<FacturaDetalleRequestDTO> detalles,
+        // Datos de ARCA (null mientras no se facturo)
+        String cae,
+        LocalDate caeVencimiento,
+        Long numeroArca,
+        LocalDateTime fechaFacturacion,
+        String motivoRechazo) {      // ultimo rechazo de ARCA, si lo hubo
 }

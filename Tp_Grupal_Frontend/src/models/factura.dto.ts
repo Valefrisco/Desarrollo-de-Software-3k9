@@ -5,7 +5,8 @@
 // =====================================================================
 
 /** Estados posibles de una factura (en Java es un String con estos valores). */
-export type EstadoFactura = 'BORRADOR' | 'EMITIDA' | 'ANULADA';
+// FACTURADA = ARCA le dio CAE: queda de solo lectura (no se edita, anula ni borra).
+export type EstadoFactura = 'BORRADOR' | 'EMITIDA' | 'FACTURADA' | 'ANULADA';
 
 // ---------------------------------------------------------------------
 // Salida: lo que DEVUELVE la API
@@ -22,6 +23,8 @@ export interface FacturaReporteDTO {
     importeTotal: number;
     estado: EstadoFactura;
     cantidadItems: number;
+    cae: string | null;            // solo FACTURADA
+    numeroArca: number | null;     // solo FACTURADA: numero del comprobante en ARCA
 }
 
 /** Espejo de FacturaCompletaDTO.java (respuesta de GET /api/facturas/{id}, para editar). */
@@ -37,6 +40,26 @@ export interface FacturaCompletaDTO {
     observaciones: string | null;
     importeTotal: number;
     detalles: FacturaDetalleRequestDTO[];
+    // Datos de ARCA (null mientras no se facturo)
+    cae: string | null;
+    caeVencimiento: string | null;     // LocalDate -> "AAAA-MM-DD"
+    numeroArca: number | null;
+    fechaFacturacion: string | null;
+    motivoRechazo: string | null;      // ultimo rechazo de ARCA, si lo hubo
+}
+
+/** Espejo de ResultadoFacturacionDTO.java (respuesta de POST /api/facturas/facturar-emitidas). */
+export interface ResultadoFacturacionDTO {
+    facturadas: number;
+    rechazadas: number;
+    detalle: {
+        id: number;
+        numeroFactura: number | null;
+        resultado: 'A' | 'R';          // A = aprobada (FACTURADA), R = rechazada (sigue EMITIDA)
+        numeroArca: number | null;
+        cae: string | null;
+        mensaje: string | null;        // motivo del rechazo
+    }[];
 }
 
 /** Espejo de ErrorDTO.java (cuerpo de las respuestas 400, 404 y 409). */

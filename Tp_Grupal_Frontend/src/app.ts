@@ -38,8 +38,13 @@ const VISTAS: Record<Vista, { titulo: string; descripcion: string; vacio: string
     },
     EMITIDA: {
         titulo: 'Emitidas',
-        descripcion: 'Facturas emitidas. Se pueden editar o anular.',
+        descripcion: 'Facturas emitidas. Se pueden editar o anular, o facturar en ARCA para obtener su CAE.',
         vacio: 'No hay facturas emitidas con estos filtros.',
+    },
+    FACTURADA: {
+        titulo: 'Facturadas',
+        descripcion: 'Facturas autorizadas por ARCA (homologación), con CAE. Son de solo lectura.',
+        vacio: 'No hay facturas facturadas. Desde «Emitidas» usá «Facturar emitidas en ARCA».',
     },
     ANULADA: {
         titulo: 'Anuladas',
@@ -66,6 +71,7 @@ function elemento<T extends HTMLElement>(id: string): T {
 const mensaje = elemento<HTMLDivElement>('mensaje');
 const botonesMenu = Array.from(document.querySelectorAll<HTMLButtonElement>('.menu button[data-vista]'));
 const btnNuevaFactura = elemento<HTMLButtonElement>('btn-nueva-factura');
+const btnFacturarEmitidas = elemento<HTMLButtonElement>('btn-facturar-emitidas');
 
 // Modulo de listado
 const vistaListado = elemento<HTMLElement>('vista-listado');
@@ -97,6 +103,7 @@ const selectListaPrecio = elemento<HTMLSelectElement>('lista-precio-id');
 const inputObservaciones = elemento<HTMLInputElement>('observaciones');
 const selectItemArticulo = elemento<HTMLSelectElement>('item-articulo-id');
 const inputItemCantidad = elemento<HTMLInputElement>('item-cantidad');
+const celdaItemPrecio = elemento<HTMLTableCellElement>('item-precio');
 const inputItemBonificacion = elemento<HTMLInputElement>('item-bonificacion');
 const btnAgregarItem = elemento<HTMLButtonElement>('btn-agregar-item');
 const itemsBody = elemento<HTMLTableSectionElement>('items-body');
@@ -106,6 +113,11 @@ const totalComprobante = elemento<HTMLElement>('total-comprobante');
 const btnCancelar = elemento<HTMLButtonElement>('btn-cancelar');
 const btnGuardarBorrador = elemento<HTMLButtonElement>('btn-guardar-borrador');
 const btnEmitir = elemento<HTMLButtonElement>('btn-emitir');
+// Fila de carga de renglones (se oculta cuando la factura es de solo lectura)
+const filaAgregarItem = btnAgregarItem.closest('tr') as HTMLTableRowElement;
+
+/** true cuando se esta viendo una factura FACTURADA: nada se puede cambiar. */
+let soloLectura = false;
 
 // --- Mensajes al usuario ---
 let temporizadorMensaje: number | undefined;
@@ -231,6 +243,8 @@ function mostrarVista(vista: Vista): void {
     // El filtro de estado solo tiene sentido en el historico
     campoFiltroEstado.hidden = vista !== 'HISTORICO';
     if (vista !== 'HISTORICO') filtroEstado.value = '';
+    // Facturar en ARCA tiene sentido donde se ven las emitidas
+    btnFacturarEmitidas.hidden = vista !== 'EMITIDA' && vista !== 'HISTORICO';
 
     marcarMenu(vista);
     void cargarFacturas();
@@ -281,10 +295,12 @@ async function cargarFacturas(): Promise<void> {
 }
 
 function actualizarContadores(facturas: FacturaReporteDTO[]): void {
-    const estados: EstadoFactura[] = ['BORRADOR', 'EMITIDA', 'ANULADA'];
+    const estados: EstadoFactura[] = ['BORRADOR', 'EMITIDA', 'FACTURADA', 'ANULADA'];
     for (const estado of estados) {
         elemento(`contador-${estado}`).textContent = String(facturas.filter((f) => f.estado === estado).length);
     }
+    // Sin emitidas no hay nada para mandar a ARCA
+    btnFacturarEmitidas.disabled = !facturas.some((f) => f.estado === 'EMITIDA');
     elemento('contador-HISTORICO').textContent = String(facturas.length);
 }
 
@@ -301,9 +317,18 @@ function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
         const estado = document.createElement('span');
         estado.className = `estado ${factura.estado}`;
         estado.textContent = factura.estado.charAt(0) + factura.estado.slice(1).toLowerCase();
+        const celdaEstado = celda(estado);
+        if (factura.estado === 'FACTURADA' && factura.cae !== null) {
+            // Numero de ARCA (Factura C) y CAE debajo del estado
+            const datoArca = document.createElement('small');
+            datoArca.className = 'dato-arca';
+            datoArca.textContent = `C ${factura.numeroArca ?? ''} · CAE ${factura.cae}`;
+            celdaEstado.append(datoArca);
+        }
 
         // Las acciones dependen del estado: un borrador se edita o se emite;
-        // una emitida se edita o se anula; una anulada ya no admite cambios.
+        // una emitida se edita o se anula; una facturada (con CAE) solo se ve;
+        // una anulada ya no admite cambios.
         const acciones = document.createElement('div');
         acciones.className = 'acciones';
         if (factura.estado === 'BORRADOR') {
@@ -316,8 +341,13 @@ function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
                 boton('Editar', '', () => void abrirFormularioEdicion(factura)),
                 boton('Anular', 'aviso', () => void anular(factura)),
             );
+        } else if (factura.estado === 'FACTURADA') {
+            acciones.append(boton('Ver', '', () => void abrirFormularioEdicion(factura)));
         }
-        acciones.append(boton('Eliminar', 'peligro', () => void eliminar(factura)));
+        // Una facturada ya esta registrada en ARCA: no se puede borrar
+        if (factura.estado !== 'FACTURADA') {
+            acciones.append(boton('Eliminar', 'peligro', () => void eliminar(factura)));
+        }
 
         const fila = document.createElement('tr');
         if (factura.estado === 'ANULADA') fila.className = 'anulada';
@@ -327,7 +357,7 @@ function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
             celda(clienteConIva(factura), 'cliente'),
             celda(factura.puntoVentaDescripcion, 'pv'),
             celda(totalConItems(factura), 'numero total'),
-            celda(estado),
+            celdaEstado,
             celda(acciones),
         );
         facturasBody.append(fila);
@@ -376,6 +406,42 @@ async function emitirBorrador(factura: FacturaReporteDTO): Promise<void> {
     }
 }
 
+/**
+ * Manda a ARCA (homologacion) todas las facturas EMITIDA: POST /facturar-emitidas.
+ * Las aprobadas pasan a FACTURADA (con CAE); las rechazadas siguen EMITIDA con el motivo.
+ */
+async function facturarEmitidas(): Promise<void> {
+    const cantidad = Number(elemento('contador-EMITIDA').textContent);
+    const confirmado = window.confirm(
+        `¿Facturar en ARCA ${cantidad === 1 ? 'la factura emitida' : `las ${cantidad} facturas emitidas`}?\n\n`
+        + 'Las que ARCA apruebe reciben su CAE y quedan de solo lectura: ya no se pueden editar, anular ni eliminar.');
+    if (!confirmado) return;
+
+    // ARCA tarda unos segundos por factura: se avisa y se evita el doble clic
+    btnFacturarEmitidas.disabled = true;
+    const textoBoton = btnFacturarEmitidas.textContent;
+    btnFacturarEmitidas.textContent = 'Facturando en ARCA…';
+    try {
+        const resultado = await service.facturarEmitidas();
+        const resumen = `${resultado.facturadas} ${resultado.facturadas === 1 ? 'factura facturada' : 'facturas facturadas'} en ARCA.`;
+        if (resultado.rechazadas === 0) {
+            mostrarMensaje(resumen, 'exito');
+        } else {
+            const motivos = resultado.detalle
+                .filter((d) => d.resultado === 'R')
+                .map((d) => `• Factura ${d.numeroFactura ?? d.id}: ${d.mensaje ?? 'rechazada'}`);
+            mostrarMensaje(`${resumen} ${resultado.rechazadas} rechazada(s), siguen como emitidas:\n${motivos.join('\n')}`, 'error');
+        }
+        await cargarFacturas();
+    } catch (error) {
+        mostrarMensaje(textoDeError(error), 'error');
+    } finally {
+        btnFacturarEmitidas.textContent = textoBoton;
+        // el estado "disabled" lo recalcula actualizarContadores al recargar
+        btnFacturarEmitidas.disabled = !Number(elemento('contador-EMITIDA').textContent);
+    }
+}
+
 /** Borrado fisico: DELETE, previa confirmacion. */
 async function eliminar(factura: FacturaReporteDTO): Promise<void> {
     const confirmado = window.confirm(
@@ -420,7 +486,18 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
         llenarArticulos();   // los articulos dependen de la lista de precios elegida
         actualizarLetra();
 
-        if (completa.estado === 'EMITIDA') {
+        if (completa.estado === 'FACTURADA') {
+            // Con CAE de ARCA: solo se muestra, no se puede cambiar nada
+            tituloFormulario.textContent = `Factura ${completa.numeroFactura} (facturada)`;
+            const vence = completa.caeVencimiento
+                ? new Date(`${completa.caeVencimiento}T00:00:00`).toLocaleDateString('es-AR') : '—';
+            descripcionFormulario.textContent =
+                `Autorizada por ARCA (homologación) como Factura C N° ${completa.numeroArca ?? '—'}. `
+                + `CAE ${completa.cae ?? '—'}, vence el ${vence}. Es de solo lectura.`;
+            numeroComprobante.textContent = `N° ${completa.numeroFactura}`;
+            numeroComprobante.classList.remove('pendiente');
+            activarSoloLectura();
+        } else if (completa.estado === 'EMITIDA') {
             // Una emitida conserva su numero: no puede cambiar de punto de venta ni volver a borrador
             tituloFormulario.textContent = `Editar factura ${completa.numeroFactura}`;
             descripcionFormulario.textContent = 'La factura conserva su número y su punto de venta.';
@@ -440,6 +517,19 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
     }
 }
 
+/** Bloquea el comprobante: campos deshabilitados, sin carga de renglones ni botones de guardar. */
+function activarSoloLectura(): void {
+    soloLectura = true;
+    for (const campo of Array.from(formFactura.elements)) {
+        if (campo !== btnCancelar) (campo as HTMLInputElement).disabled = true;
+    }
+    filaAgregarItem.hidden = true;
+    btnGuardarBorrador.hidden = true;
+    btnEmitir.hidden = true;
+    btnCancelar.textContent = 'Volver';
+    dibujarItems();   // sin botones «Quitar»
+}
+
 function mostrarFormulario(): void {
     vistaListado.hidden = true;
     seccionFactura.hidden = false;
@@ -456,6 +546,14 @@ function limpiarFormulario(): void {
     formFactura.reset();   // vuelve cada campo a su valor inicial (en los desplegables, la primera opcion)
     facturaEditando = null;
     items = [];
+    // Deshace el modo solo lectura (factura facturada)
+    soloLectura = false;
+    for (const campo of Array.from(formFactura.elements)) {
+        (campo as HTMLInputElement).disabled = false;
+    }
+    filaAgregarItem.hidden = false;
+    btnEmitir.hidden = false;
+    btnCancelar.textContent = 'Cancelar';
     // Botones y campos como en el alta (la edicion de una emitida los cambia)
     selectPuntoVenta.disabled = false;
     btnGuardarBorrador.hidden = false;
@@ -505,7 +603,14 @@ function llenarArticulos(): void {
         articulos.map((a) => ({ id: a.articuloId, nombre: `${a.nombre} — ${formatoMoneda.format(a.precio)}` })),
         articulos.length > 0 ? 'Elegí un artículo' : 'No hay artículos en esta lista',
     );
+    actualizarPrecioItem();
     dibujarItems();   // nombres, precios y totales dependen de la lista
+}
+
+/** Muestra el precio unitario del articulo elegido en el renglon de carga (sale de la lista de precios). */
+function actualizarPrecioItem(): void {
+    const articulo = articuloDeLista(numeroOpcional(selectItemArticulo));
+    celdaItemPrecio.textContent = articulo ? formatoMoneda.format(articulo.precio) : '—';
 }
 
 /**
@@ -539,8 +644,8 @@ function agregarItem(): void {
         mostrarMensaje('Elegí un artículo.', 'error');
         return;
     }
-    if (cantidad === undefined || cantidad <= 0) {
-        mostrarMensaje('La cantidad debe ser mayor a 0.', 'error');
+    if (cantidad === undefined || !Number.isInteger(cantidad) || cantidad < 1) {
+        mostrarMensaje('La cantidad debe ser un número entero mayor a 0.', 'error');
         return;
     }
     if (bonificacion !== undefined && (bonificacion < 0 || bonificacion > 100)) {
@@ -554,6 +659,7 @@ function agregarItem(): void {
     selectItemArticulo.value = '';
     inputItemCantidad.value = '';
     inputItemBonificacion.value = '';
+    actualizarPrecioItem();
     selectItemArticulo.focus();
 
     dibujarItems();
@@ -587,7 +693,7 @@ function dibujarItems(): void {
             celda(articulo ? formatoMoneda.format(articulo.precio) : '—', 'numero'),
             celda(String(bonificacion), 'numero'),
             celda(articulo ? formatoMoneda.format(subtotal) : '—', 'numero'),
-            celda(boton('Quitar', 'peligro', () => quitarItem(indice))),
+            celda(soloLectura ? '' : boton('Quitar', 'peligro', () => quitarItem(indice))),
         );
         itemsBody.append(fila);
     });
@@ -598,9 +704,9 @@ function dibujarItems(): void {
     totalIva.textContent = formatoMoneda.format(redondear(total - neto));
     totalComprobante.textContent = formatoMoneda.format(redondear(total));
 
-    // sin renglones no se puede guardar ni emitir
-    btnEmitir.disabled = items.length === 0;
-    btnGuardarBorrador.disabled = items.length === 0;
+    // sin renglones no se puede guardar ni emitir (y en solo lectura, nunca)
+    btnEmitir.disabled = soloLectura || items.length === 0;
+    btnGuardarBorrador.disabled = soloLectura || items.length === 0;
 }
 
 // --- Guardar ---
@@ -668,6 +774,7 @@ async function guardarFactura(estado: 'BORRADOR' | 'EMITIDA'): Promise<void> {
 
 // Barra lateral
 btnNuevaFactura.addEventListener('click', abrirFormularioNuevo);
+btnFacturarEmitidas.addEventListener('click', () => void facturarEmitidas());
 for (const b of botonesMenu) {
     b.addEventListener('click', () => mostrarVista(b.dataset.vista as Vista));
 }
@@ -686,6 +793,21 @@ btnLimpiarFiltros.addEventListener('click', () => {
 selectListaPrecio.addEventListener('change', llenarArticulos);
 selectCondicionIva.addEventListener('change', actualizarLetra);
 btnAgregarItem.addEventListener('click', agregarItem);
+selectItemArticulo.addEventListener('change', actualizarPrecioItem);
+
+// Cantidad: solo enteros. Bloquea las teclas de decimales, signos y notacion cientifica.
+inputItemCantidad.addEventListener('keydown', (evento: KeyboardEvent) => {
+    if (['.', ',', 'e', 'E', '-', '+'].includes(evento.key)) {
+        evento.preventDefault();
+    }
+});
+// Si se pega un valor con decimales (ej. "2.5"), lo deja en la parte entera
+inputItemCantidad.addEventListener('change', () => {
+    const valor = Number(inputItemCantidad.value);
+    if (inputItemCantidad.value !== '' && !Number.isInteger(valor)) {
+        inputItemCantidad.value = String(Math.trunc(valor));
+    }
+});
 
 // Enter en los campos del renglon agrega el renglon (en vez de enviar el formulario)
 const camposRenglon: HTMLElement[] = [selectItemArticulo, inputItemCantidad, inputItemBonificacion];

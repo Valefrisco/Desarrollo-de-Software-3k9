@@ -47,6 +47,10 @@ public class FacturaVenta extends AuditoriaApp {
     private Date caeFechaVencimiento;
     private String resultadoAfip;
     private String motivoRechazo;
+    // Datos que devuelve ARCA al facturar (estado FACTURADA): numero del comprobante
+    // en ARCA (Factura C, correlativo por punto de venta de ARCA) y fecha de la autorizacion.
+    private Long numeroArca;
+    private LocalDateTime fechaFacturacion;
     @Column(nullable = false)
     private String estado;
     @Temporal(TemporalType.DATE)

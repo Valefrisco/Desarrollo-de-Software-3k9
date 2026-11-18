@@ -6,6 +6,7 @@ import {
     FacturaFiltrosDTO,
     FacturaReporteDTO,
     FacturaRequestDTO,
+    ResultadoFacturacionDTO,
 } from '../models/factura.dto.js';
 
 /** URL base de la API REST de Spring Boot (FacturaRestController). */
@@ -81,6 +82,13 @@ export class FacturaService {
             body: JSON.stringify(cuerpo),
         });
         return this.procesarRespuesta<FacturaReporteDTO>(respuesta);
+    }
+
+    // POST /api/facturas/facturar-emitidas  (responde 200 con el resumen)
+    // Pide el CAE a ARCA para todas las EMITIDA; las aprobadas pasan a FACTURADA.
+    async facturarEmitidas(): Promise<ResultadoFacturacionDTO> {
+        const respuesta = await fetch(`${API_URL}/facturar-emitidas`, { method: 'POST' });
+        return this.procesarRespuesta<ResultadoFacturacionDTO>(respuesta);
     }
 
     // DELETE /api/facturas/{id}  (responde 204, sin cuerpo)

@@ -22,6 +22,8 @@ public class FacturaReporteDTO {
     private String condicionIva;
     private String puntoVentaDescripcion;
     private double importeTotal;
-    private String estado;         // BORRADOR / EMITIDA / ANULADA
+    private String estado;         // BORRADOR / EMITIDA / FACTURADA / ANULADA
     private long cantidadItems;
+    private String cae;            // solo FACTURADA: codigo de autorizacion de ARCA
+    private Long numeroArca;       // solo FACTURADA: numero del comprobante en ARCA
 }
