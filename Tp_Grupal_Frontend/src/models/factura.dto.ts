@@ -25,6 +25,8 @@ export interface FacturaReporteDTO {
     cantidadItems: number;
     cae: string | null;            // solo FACTURADA
     numeroArca: number | null;     // solo FACTURADA: numero del comprobante en ARCA
+    numeroNotaCredito: number | null;  // solo ANULADA en ARCA: numero de la Nota de Credito C
+    caeNotaCredito: string | null;     // solo ANULADA en ARCA: CAE de la Nota de Credito C
 }
 
 /** Espejo de FacturaCompletaDTO.java (respuesta de GET /api/facturas/{id}, para editar). */
@@ -46,6 +48,28 @@ export interface FacturaCompletaDTO {
     numeroArca: number | null;
     fechaFacturacion: string | null;
     motivoRechazo: string | null;      // ultimo rechazo de ARCA, si lo hubo
+    // Nota de Credito C con la que se anulo en ARCA (null si no se anulo en ARCA)
+    numeroNotaCredito: number | null;
+    caeNotaCredito: string | null;
+}
+
+/** Espejo de AnulacionArcaDTO.java (respuesta de POST /api/facturas/{id}/anular-en-arca). */
+export interface AnulacionArcaDTO {
+    id: number;
+    numeroFactura: number;
+    numeroNotaCredito: number;
+    caeNotaCredito: string;
+    caeVencimiento: string | null;     // "AAAA-MM-DD"
+}
+
+/** Espejo de PaginaDTO.java (respuesta de GET /api/facturas/pagina). */
+export interface PaginaDTO<T> {
+    contenido: T[];          // los elementos de esta pagina
+    pagina: number;          // empieza en 0
+    tamano: number;
+    totalElementos: number;  // de todas las paginas
+    totalPaginas: number;    // 0 si no hay resultados
+    importeTotal: number;    // suma de TODOS los resultados filtrados (sin anuladas, salvo que se filtre por ANULADA)
 }
 
 /** Espejo de ResultadoFacturacionDTO.java (respuesta de POST /api/facturas/facturar-emitidas). */

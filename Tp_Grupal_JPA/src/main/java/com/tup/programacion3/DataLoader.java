@@ -288,6 +288,38 @@ public class DataLoader implements CommandLineRunner {
                 "Compra web #4512", renglon(articulo1, 6, 0), renglon(articulo2, 6, 0), renglon(agua, 12, 10));
         facturaEjemplo(pvNorte, supermercado, ivaInscripto, tipoMoneda, listaPrecio, "BORRADOR", 1, ahora,
                 "Esperando confirmacion del cliente", renglon(yerba, 30, 8), renglon(fideos, 48, 8));
+
+        // 12. Mas facturas para probar la paginacion (10 por pagina). Con estas quedan 20 en total:
+        //     12 EMITIDA, 5 BORRADOR y 3 ANULADA -> el historico y "Emitidas" ocupan 2 paginas.
+        //     (Al facturar las emitidas en ARCA, "Facturadas" tambien pasa a tener 2 paginas.)
+        facturaEjemplo(puntoVenta, distribuidora, ivaInscripto, tipoMoneda, listaMinorista, "EMITIDA", 60, ahora,
+                "Reposicion mensual", renglon(agua, 48, 5), renglon(articulo1, 12, 0));
+        facturaEjemplo(pvNorte, almacen, ivaMonotributo, tipoMoneda, listaMinorista, "EMITIDA", 55, ahora,
+                null, renglon(yerba, 6, 0), renglon(aceite, 6, 0));
+        facturaEjemplo(pvOnline, kiosco, ivaMonotributo, tipoMoneda, listaOnline, "EMITIDA", 50, ahora,
+                "Compra web #4390", renglon(articulo2, 10, 0), renglon(agua, 10, 0));
+        facturaEjemplo(puntoVenta, supermercado, ivaInscripto, tipoMoneda, listaMinorista, "EMITIDA", 45, ahora,
+                "Pedido quincenal", renglon(fideos, 60, 10), renglon(detergente, 24, 5), renglon(lavandina, 24, 5));
+        facturaEjemplo(pvNorte, maria, condicionIva, tipoMoneda, listaMinorista, "EMITIDA", 40, ahora,
+                null, renglon(articulo1, 1, 0), renglon(yerba, 1, 0));
+        facturaEjemplo(pvOnline, distribuidora, ivaInscripto, tipoMoneda, listaOnline, "EMITIDA", 35, ahora,
+                "Compra web #4421", renglon(aceite, 30, 5), renglon(yerba, 20, 5));
+        facturaEjemplo(puntoVenta, kiosco, ivaMonotributo, tipoMoneda, listaMinorista, "EMITIDA", 28, ahora,
+                null, renglon(articulo2, 24, 0), renglon(agua, 24, 0));
+        facturaEjemplo(pvNorte, almacen, ivaMonotributo, tipoMoneda, listaMinorista, "EMITIDA", 16, ahora,
+                "Entrega en deposito", renglon(lavandina, 12, 0), renglon(detergente, 12, 0));
+        facturaEjemplo(pvOnline, maria, condicionIva, tipoMoneda, listaOnline, "BORRADOR", 6, ahora,
+                "Falta confirmar el envio", renglon(articulo1, 2, 0));
+        facturaEjemplo(puntoVenta, supermercado, ivaInscripto, tipoMoneda, listaMinorista, "BORRADOR", 5, ahora,
+                "Presupuesto pedido por compras", renglon(aceite, 48, 10), renglon(fideos, 48, 10));
+        facturaEjemplo(pvNorte, distribuidora, ivaInscripto, tipoMoneda, listaMinorista, "BORRADOR", 4, ahora,
+                null, renglon(agua, 120, 12));
+        facturaEjemplo(pvOnline, kiosco, ivaMonotributo, tipoMoneda, listaOnline, "BORRADOR", 2, ahora,
+                "Carrito abandonado", renglon(articulo2, 3, 0), renglon(yerba, 2, 0));
+        anularEjemplo(facturaEjemplo(puntoVenta, almacen, ivaMonotributo, tipoMoneda, listaMinorista, "EMITIDA", 30, ahora,
+                null, renglon(detergente, 5, 0)), "Cliente equivocado");
+        anularEjemplo(facturaEjemplo(pvNorte, maria, condicionIva, tipoMoneda, listaMinorista, "EMITIDA", 10, ahora,
+                null, renglon(aceite, 2, 0), renglon(lavandina, 1, 0)), "Factura duplicada");
         // ---------------- CONSULTAS JPQL ----------------
 
         imprimirSeccion(1, "Lista completa de todas las facturas");
@@ -594,6 +626,14 @@ public class DataLoader implements CommandLineRunner {
         // La entidad esta "managed" (misma transaccion): el cambio se guarda solo
         em.find(FacturaVenta.class, id).setFechaEmision(ahora.minusDays(diasAtras));
         return id;
+    }
+
+    /** Anula una factura de ejemplo igual que lo haria la API (PUT con estado ANULADA y el motivo). */
+    private void anularEjemplo(Long facturaId, String motivo) {
+        FacturaRequestDTO anulacion = new FacturaRequestDTO();
+        anulacion.setEstado("ANULADA");
+        anulacion.setObservaciones(motivo);
+        facturaService.actualizar(facturaId, anulacion);
     }
 
     // FUNCIÓN HELPER

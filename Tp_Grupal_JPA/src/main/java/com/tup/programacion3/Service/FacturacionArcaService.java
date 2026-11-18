@@ -1,8 +1,11 @@
 package com.tup.programacion3.Service;
 
+import com.tup.programacion3.DTOs.AnulacionArcaDTO;
 import com.tup.programacion3.DTOs.ResultadoFacturacionDTO;
 import com.tup.programacion3.Entity.FacturaVenta;
+import com.tup.programacion3.Exception.RecursoNoEncontradoException;
 import com.tup.programacion3.Repository.FacturaVentaRepository;
+import com.tup.programacion3.arca.ArcaException;
 import com.tup.programacion3.arca.WsfeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class FacturacionArcaService {
     private final FacturaVentaRepository facturaVentaRepository;
     private final WsfeService wsfeService;
     private final TransactionTemplate transaccion;   // lo crea Spring Boot automaticamente
+    private final FacturaService facturaService;
 
     /**
      * Factura en ARCA todas las facturas EMITIDA, de la mas vieja a la mas nueva.
@@ -70,6 +74,7 @@ public class FacturacionArcaService {
                     f.setCae(r.cae());
                     f.setCaeFechaVencimiento(aDate(r.vencimientoCae()));
                     f.setNumeroArca(r.numero());
+                    f.setPuntoVentaArca(r.puntoVenta());
                     f.setFechaFacturacion(LocalDateTime.now(ZONA));
                     f.setMotivoRechazo(null);
                     return new ResultadoFacturacionDTO.Detalle(f.getId(), f.getNumero(), "A",
@@ -93,6 +98,46 @@ public class FacturacionArcaService {
             }).orElse(null));
             return new ResultadoFacturacionDTO.Detalle(id, numero, "R", null, null, motivo);
         }
+    }
+
+    /**
+     * Anula en ARCA una factura FACTURADA emitiendo una Nota de Credito C por el mismo total,
+     * asociada a la factura. Si ARCA la aprueba, la factura pasa a ANULADA y guarda los datos
+     * de la nota de credito; si la rechaza, la factura sigue FACTURADA y se informa el motivo (409).
+     * synchronized: evita emitir dos notas de credito para la misma factura con dos clics.
+     */
+    public synchronized AnulacionArcaDTO anularEnArca(Long id, String motivo) {
+        if (motivo == null || motivo.isBlank()) {
+            throw new IllegalArgumentException("Indica el motivo de la anulacion");
+        }
+
+        // 1) Validar y leer lo necesario (transaccion corta, de solo lectura)
+        FacturaVenta f = transaccion.execute(estado -> facturaVentaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Factura no encontrada con id " + id)));
+        if (!FacturaService.ESTADO_FACTURADA.equals(f.getEstado())) {
+            throw new IllegalStateException("Solo se anulan en ARCA las facturas FACTURADA (la factura "
+                    + f.getNumero() + " esta " + f.getEstado() + "). Las emitidas se anulan con el boton Anular.");
+        }
+
+        // 2) Pedir el CAE de la nota de credito
+        WsfeService.ResultadoFactura nc;
+        try {
+            int ptoVtaFactura = f.getPuntoVentaArca() != null ? f.getPuntoVentaArca() : wsfeService.puntoVenta();
+            nc = wsfeService.emitirNotaCreditoC(BigDecimal.valueOf(f.getImporteTotal()), ptoVtaFactura,
+                    f.getNumeroArca(), f.getFechaFacturacion().toLocalDate());
+        } catch (ArcaException e) {
+            throw new IllegalStateException("No se pudo emitir la nota de credito en ARCA: " + e.getMessage(), e);
+        }
+        if (!"A".equals(nc.resultado())) {
+            String detalle = nc.observaciones().isEmpty() ? "sin motivo informado" : String.join(" | ", nc.observaciones());
+            throw new IllegalStateException("ARCA rechazo la nota de credito: " + detalle);
+        }
+
+        // 3) Guardar: la factura pasa a ANULADA con los datos de la nota de credito
+        facturaService.registrarAnulacionEnArca(id, motivo.trim(), nc.numero(), nc.cae());
+        LocalDate vencimiento = nc.vencimientoCae() == null || nc.vencimientoCae().isBlank()
+                ? null : LocalDate.parse(nc.vencimientoCae(), DateTimeFormatter.BASIC_ISO_DATE);
+        return new AnulacionArcaDTO(id, f.getNumero(), nc.numero(), nc.cae(), vencimiento);
     }
 
     /** ARCA devuelve el vencimiento del CAE como "yyyyMMdd". */

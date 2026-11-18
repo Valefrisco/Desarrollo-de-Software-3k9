@@ -5,7 +5,9 @@ import {
     FacturaCompletaDTO,
     FacturaFiltrosDTO,
     FacturaReporteDTO,
+    AnulacionArcaDTO,
     FacturaRequestDTO,
+    PaginaDTO,
     ResultadoFacturacionDTO,
 } from '../models/factura.dto.js';
 
@@ -22,19 +24,34 @@ const CATALOGOS_URL = 'http://localhost:8080/api/catalogos';
 export class FacturaService {
 
     // GET /api/facturas?fechaDesde=...&fechaHasta=...&estado=...&montoMinimo=...
+    // Devuelve TODAS las que cumplen los filtros (se usa para los contadores del menu)
     async obtenerFacturas(filtros: FacturaFiltrosDTO): Promise<FacturaReporteDTO[]> {
-        // Solo se agregan a la URL los filtros que tienen valor
+        const query = this.parametrosDeFiltro(filtros).toString();
+        const url = query ? `${API_URL}?${query}` : API_URL;
+
+        const respuesta = await fetch(url);
+        return this.procesarRespuesta<FacturaReporteDTO[]>(respuesta);
+    }
+
+    // GET /api/facturas/pagina?pagina=0&tamano=10 (+ filtros)
+    // Devuelve solo una pagina, ya ordenada (mas nuevas primero) por el backend.
+    async obtenerPagina(filtros: FacturaFiltrosDTO, pagina: number, tamano: number): Promise<PaginaDTO<FacturaReporteDTO>> {
+        const params = this.parametrosDeFiltro(filtros);
+        params.append('pagina', String(pagina));
+        params.append('tamano', String(tamano));
+
+        const respuesta = await fetch(`${API_URL}/pagina?${params.toString()}`);
+        return this.procesarRespuesta<PaginaDTO<FacturaReporteDTO>>(respuesta);
+    }
+
+    // Solo se agregan a la URL los filtros que tienen valor
+    private parametrosDeFiltro(filtros: FacturaFiltrosDTO): URLSearchParams {
         const params = new URLSearchParams();
         if (filtros.fechaDesde) params.append('fechaDesde', filtros.fechaDesde);
         if (filtros.fechaHasta) params.append('fechaHasta', filtros.fechaHasta);
         if (filtros.estado) params.append('estado', filtros.estado);
         if (filtros.montoMinimo !== undefined) params.append('montoMinimo', String(filtros.montoMinimo));
-
-        const query = params.toString();
-        const url = query ? `${API_URL}?${query}` : API_URL;
-
-        const respuesta = await fetch(url);
-        return this.procesarRespuesta<FacturaReporteDTO[]>(respuesta);
+        return params;
     }
 
     // GET /api/catalogos  (puntos de venta, clientes, condiciones IVA, monedas, listas y articulos)
@@ -89,6 +106,17 @@ export class FacturaService {
     async facturarEmitidas(): Promise<ResultadoFacturacionDTO> {
         const respuesta = await fetch(`${API_URL}/facturar-emitidas`, { method: 'POST' });
         return this.procesarRespuesta<ResultadoFacturacionDTO>(respuesta);
+    }
+
+    // POST /api/facturas/{id}/anular-en-arca  body: { motivo }
+    // Anula una FACTURADA emitiendo en ARCA una Nota de Credito C asociada.
+    async anularEnArca(id: number, motivo: string): Promise<AnulacionArcaDTO> {
+        const respuesta = await fetch(`${API_URL}/${id}/anular-en-arca`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motivo }),
+        });
+        return this.procesarRespuesta<AnulacionArcaDTO>(respuesta);
     }
 
     // DELETE /api/facturas/{id}  (responde 204, sin cuerpo)

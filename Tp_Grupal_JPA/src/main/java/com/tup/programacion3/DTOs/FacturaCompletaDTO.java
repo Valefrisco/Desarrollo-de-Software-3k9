@@ -27,5 +27,8 @@ public record FacturaCompletaDTO(
         LocalDate caeVencimiento,
         Long numeroArca,
         LocalDateTime fechaFacturacion,
-        String motivoRechazo) {      // ultimo rechazo de ARCA, si lo hubo
+        String motivoRechazo,        // ultimo rechazo de ARCA, si lo hubo
+        // Nota de Credito C con la que se anulo en ARCA (null si no se anulo en ARCA)
+        Long numeroNotaCredito,
+        String caeNotaCredito) {
 }

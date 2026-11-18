@@ -178,6 +178,8 @@
         tr.anulada td.total span { text-decoration: line-through; }
         tfoot td { font-weight: 700; border-bottom: 0; border-top: 1px solid var(--linea); background: #f6f8fa; }
         .acciones { display: flex; gap: 6px; }
+        .paginacion { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 12px; }
+        .paginacion span { color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
 
         .estado { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
         .estado.BORRADOR { background: var(--borrador-fondo); color: var(--borrador); }
@@ -356,6 +358,12 @@
                             </tbody>
                             <tfoot id="facturas-pie"></tfoot>
                         </table>
+                    </div>
+                    <!-- Paginacion: 10 facturas por pagina, la arma el backend (GET /api/facturas/pagina) -->
+                    <div class="paginacion" id="paginacion">
+                        <button type="button" class="boton chico" id="btn-pagina-anterior">« Anterior</button>
+                        <span id="texto-pagina">Página 1 de 1</span>
+                        <button type="button" class="boton chico" id="btn-pagina-siguiente">Siguiente »</button>
                     </div>
                 </div>
             </section>

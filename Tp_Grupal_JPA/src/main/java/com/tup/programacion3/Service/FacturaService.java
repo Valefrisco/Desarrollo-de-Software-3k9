@@ -4,6 +4,7 @@ import com.tup.programacion3.DTOs.FacturaCompletaDTO;
 import com.tup.programacion3.DTOs.FacturaDetalleRequestDTO;
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
 import com.tup.programacion3.DTOs.FacturaRequestDTO;
+import com.tup.programacion3.DTOs.PaginaDTO;
 import com.tup.programacion3.Entity.FacturaVenta;
 import com.tup.programacion3.Entity.FacturaVentaDetalle;
 import com.tup.programacion3.Entity.ListaPrecioArticulo;
@@ -34,7 +35,8 @@ public class FacturaService {
     // Ciclo de vida: BORRADOR -> EMITIDA -> FACTURADA
     //                                    \-> ANULADA
     // FACTURADA = ARCA autorizo el comprobante y le dio CAE (ver FacturacionArcaService).
-    // Desde ahi la factura es de solo lectura: no se edita, no se anula y no se borra.
+    // Desde ahi la factura es de solo lectura: no se edita ni se borra, y solo se anula
+    // en ARCA con una Nota de Credito (FACTURADA -> ANULADA, ver anularEnArca).
     public static final String ESTADO_BORRADOR = "BORRADOR";
     public static final String ESTADO_EMITIDA = "EMITIDA";
     public static final String ESTADO_FACTURADA = "FACTURADA";
@@ -65,6 +67,19 @@ public class FacturaService {
     public List<FacturaReporteDTO> buscarFacturasFiltradas(
             LocalDateTime desde, LocalDateTime hasta, String estado, Double montoMinimo) {
         return facturaReporteRepository.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo);
+    }
+
+    /** Una pagina del listado (pagina empieza en 0; tamano entre 1 y 100). */
+    @Transactional(readOnly = true)
+    public PaginaDTO<FacturaReporteDTO> buscarPaginaFiltrada(
+            LocalDateTime desde, LocalDateTime hasta, String estado, Double montoMinimo, int pagina, int tamano) {
+        if (pagina < 0) {
+            throw new IllegalArgumentException("La pagina no puede ser negativa");
+        }
+        if (tamano < 1 || tamano > 100) {
+            throw new IllegalArgumentException("El tamano de pagina debe estar entre 1 y 100");
+        }
+        return facturaReporteRepository.buscarPaginaFiltrada(desde, hasta, estado, montoMinimo, pagina, tamano);
     }
 
     /** Factura completa (IDs y renglones) para cargarla en el formulario de edicion. */
@@ -101,7 +116,9 @@ public class FacturaService {
                         ? new java.sql.Date(f.getCaeFechaVencimiento().getTime()).toLocalDate() : null,
                 f.getNumeroArca(),
                 f.getFechaFacturacion(),
-                f.getMotivoRechazo());
+                f.getMotivoRechazo(),
+                f.getNumeroNotaCredito(),
+                f.getCaeNotaCredito());
     }
 
     // =====================================================================
@@ -181,7 +198,8 @@ public class FacturaService {
 
         // 0) Una factura con CAE ya esta registrada en ARCA: es de solo lectura
         if (ESTADO_FACTURADA.equals(estadoActual)) {
-            throw new IllegalStateException(mensajeFacturada(factura, "modificar ni anular"));
+            throw new IllegalStateException(mensajeFacturada(factura,
+                    "modificar. Para anularla hay que emitir una Nota de Credito en ARCA (Anular en ARCA)"));
         }
 
         String nuevoEstado = normalizarEstado(dto.getEstado());
@@ -285,7 +303,8 @@ public class FacturaService {
     @Transactional
     public void eliminar(Long id) {
         FacturaVenta factura = buscarPorId(facturaVentaRepository, id, "Factura");
-        if (ESTADO_FACTURADA.equals(factura.getEstado())) {
+        // Si paso por ARCA (facturada, o anulada con nota de credito) queda como registro: no se borra
+        if (factura.getCae() != null) {
             throw new IllegalStateException(mensajeFacturada(factura, "eliminar"));
         }
         // CascadeType.ALL + orphanRemoval: se borran tambien todos sus detalles
@@ -398,7 +417,30 @@ public class FacturaService {
                 f.getEstado(),
                 f.getDetalles().size(),
                 f.getCae(),
-                f.getNumeroArca());
+                f.getNumeroArca(),
+                f.getNumeroNotaCredito(),
+                f.getCaeNotaCredito());
+    }
+
+    /**
+     * Registra la anulacion en ARCA de una FACTURADA (la llama FacturacionArcaService despues
+     * de que ARCA aprueba la nota de credito): pasa a ANULADA, como una anulacion comun, y
+     * guarda el numero y el CAE de la nota de credito.
+     */
+    @Transactional
+    public void registrarAnulacionEnArca(Long id, String motivo, long numeroNotaCredito, String caeNotaCredito) {
+        FacturaVenta factura = buscarPorId(facturaVentaRepository, id, "Factura");
+        Usuario usuario = usuarioActual();
+        LocalDateTime ahora = LocalDateTime.now();
+
+        factura.setEstado(ESTADO_ANULADA);
+        factura.setFechaAnulacion(new Date());
+        factura.setFechaBaja(ahora);
+        factura.setUsuarioBaja(usuario);
+        factura.setObservaciones(motivo);
+        factura.setNumeroNotaCredito(numeroNotaCredito);
+        factura.setCaeNotaCredito(caeNotaCredito);
+        registrarModificacion(factura, usuario, ahora);
     }
 
     private static String mensajeFacturada(FacturaVenta f, String accion) {

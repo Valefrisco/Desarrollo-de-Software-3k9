@@ -1,8 +1,11 @@
 package com.tup.programacion3.Controller;
 
+import com.tup.programacion3.DTOs.AnulacionArcaDTO;
+import com.tup.programacion3.DTOs.AnulacionArcaRequestDTO;
 import com.tup.programacion3.DTOs.FacturaCompletaDTO;
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
 import com.tup.programacion3.DTOs.FacturaRequestDTO;
+import com.tup.programacion3.DTOs.PaginaDTO;
 import com.tup.programacion3.DTOs.ResultadoFacturacionDTO;
 import com.tup.programacion3.Service.FacturaService;
 import com.tup.programacion3.Service.FacturacionArcaService;
@@ -41,6 +44,24 @@ public class FacturaRestController {
         return facturaService.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo);
     }
 
+    // GET /api/facturas/pagina?pagina=0&tamano=10 (+ los mismos filtros que GET /api/facturas)
+    // -> una pagina del listado, de la mas nueva a la mas vieja, con el total de elementos,
+    //    de paginas y la suma de importes de todos los resultados filtrados. 400 si pagina/tamano son invalidos.
+    @GetMapping("/pagina")
+    public PaginaDTO<FacturaReporteDTO> listarPagina(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
+            @RequestParam(required = false) String estado,
+            @RequestParam(required = false) Double montoMinimo,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "10") int tamano) {
+
+        LocalDateTime desde = (fechaDesde != null) ? fechaDesde.atStartOfDay() : null;
+        LocalDateTime hasta = (fechaHasta != null) ? fechaHasta.atTime(LocalTime.MAX) : null;
+
+        return facturaService.buscarPaginaFiltrada(desde, hasta, estado, montoMinimo, pagina, tamano);
+    }
+
     // GET /api/facturas/{id} -> factura con IDs y renglones (para cargarla en el formulario). 404 si no existe.
     @GetMapping("/{id}")
     public FacturaCompletaDTO obtener(@PathVariable Long id) {
@@ -71,6 +92,14 @@ public class FacturaRestController {
     @PostMapping("/facturar-emitidas")
     public ResultadoFacturacionDTO facturarEmitidas() {
         return facturacionArcaService.facturarEmitidas();
+    }
+
+    // POST /api/facturas/{id}/anular-en-arca  body: { "motivo": "..." }
+    // -> anula una FACTURADA emitiendo en ARCA una Nota de Credito C asociada. La factura pasa a
+    //    ANULADA con el numero y CAE de la nota de credito. 409 si no esta FACTURADA o ARCA la rechaza.
+    @PostMapping("/{id}/anular-en-arca")
+    public AnulacionArcaDTO anularEnArca(@PathVariable Long id, @RequestBody AnulacionArcaRequestDTO request) {
+        return facturacionArcaService.anularEnArca(id, request.motivo());
     }
 
     // DELETE /api/facturas/{id} -> borra la factura y sus detalles. Responde 204 No Content.

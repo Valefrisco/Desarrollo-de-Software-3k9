@@ -50,7 +50,12 @@ public class FacturaVenta extends AuditoriaApp {
     // Datos que devuelve ARCA al facturar (estado FACTURADA): numero del comprobante
     // en ARCA (Factura C, correlativo por punto de venta de ARCA) y fecha de la autorizacion.
     private Long numeroArca;
+    private Integer puntoVentaArca;        // punto de venta de ARCA con el que se facturo
     private LocalDateTime fechaFacturacion;
+    // Anulacion de una FACTURADA: en ARCA no se borra, se emite una Nota de Credito C
+    // asociada a la factura. Estos son los datos que devuelve ARCA para esa nota de credito.
+    private Long numeroNotaCredito;
+    private String caeNotaCredito;
     @Column(nullable = false)
     private String estado;
     @Temporal(TemporalType.DATE)

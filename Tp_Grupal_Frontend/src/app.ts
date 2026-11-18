@@ -5,6 +5,7 @@ import {
     FacturaFiltrosDTO,
     FacturaReporteDTO,
     FacturaRequestDTO,
+    PaginaDTO,
 } from './models/factura.dto.js';
 import { FacturaService } from './services/FacturaService.js';
 
@@ -43,12 +44,12 @@ const VISTAS: Record<Vista, { titulo: string; descripcion: string; vacio: string
     },
     FACTURADA: {
         titulo: 'Facturadas',
-        descripcion: 'Facturas autorizadas por ARCA (homologación), con CAE. Son de solo lectura.',
+        descripcion: 'Facturas autorizadas por ARCA (homologación), con CAE. No se editan ni se borran; se anulan en ARCA con una Nota de Crédito.',
         vacio: 'No hay facturas facturadas. Desde «Emitidas» usá «Facturar emitidas en ARCA».',
     },
     ANULADA: {
         titulo: 'Anuladas',
-        descripcion: 'Facturas anuladas. Quedan como registro y no se pueden modificar.',
+        descripcion: 'Facturas anuladas. Quedan como registro y no se pueden modificar. Las que estaban facturadas muestran su Nota de Crédito de ARCA.',
         vacio: 'No hay facturas anuladas.',
     },
     HISTORICO: {
@@ -86,6 +87,15 @@ const filtroMontoMinimo = elemento<HTMLInputElement>('filtro-monto-minimo');
 const btnLimpiarFiltros = elemento<HTMLButtonElement>('btn-limpiar-filtros');
 const facturasBody = elemento<HTMLTableSectionElement>('facturas-body');
 const facturasPie = elemento<HTMLTableSectionElement>('facturas-pie');
+const paginacion = elemento<HTMLDivElement>('paginacion');
+const btnPaginaAnterior = elemento<HTMLButtonElement>('btn-pagina-anterior');
+const btnPaginaSiguiente = elemento<HTMLButtonElement>('btn-pagina-siguiente');
+const textoPagina = elemento<HTMLSpanElement>('texto-pagina');
+
+/** Facturas por pagina en el listado (la paginacion la hace el backend). */
+const TAMANO_PAGINA = 10;
+/** Pagina del listado que se esta mostrando (empieza en 0). Vuelve a 0 al cambiar de vista o de filtros. */
+let paginaActual = 0;
 
 // Modulo nueva / editar factura (arranca oculto)
 const seccionFactura = elemento<HTMLElement>('seccion-factura');
@@ -247,6 +257,7 @@ function mostrarVista(vista: Vista): void {
     btnFacturarEmitidas.hidden = vista !== 'EMITIDA' && vista !== 'HISTORICO';
 
     marcarMenu(vista);
+    paginaActual = 0;   // cada vista arranca en su primera pagina
     void cargarFacturas();
 }
 
@@ -284,12 +295,16 @@ async function cargarFacturas(): Promise<void> {
         const todas = await service.obtenerFacturas({});
         actualizarContadores(todas);
 
-        // Con los filtros del modulo actual: para la tabla
-        const facturas = await service.obtenerFacturas(leerFiltros());
-        facturas.sort((a, b) => b.fechaEmision.localeCompare(a.fechaEmision));   // mas nuevas primero
-        dibujarFacturas(facturas);
+        // Con los filtros del modulo actual: solo la pagina actual (ya viene ordenada del backend)
+        const pagina = await service.obtenerPagina(leerFiltros(), paginaActual, TAMANO_PAGINA);
+        paginaActual = pagina.pagina;   // el backend la ajusta si la pagina pedida ya no existe
+        dibujarFacturas(pagina);
+        dibujarPaginacion(pagina);
     } catch (error) {
-        dibujarFacturas([]);
+        const vacia: PaginaDTO<FacturaReporteDTO> =
+            { contenido: [], pagina: 0, tamano: TAMANO_PAGINA, totalElementos: 0, totalPaginas: 0, importeTotal: 0 };
+        dibujarFacturas(vacia);
+        dibujarPaginacion(vacia);
         mostrarMensaje(textoDeError(error), 'error');
     }
 }
@@ -304,7 +319,17 @@ function actualizarContadores(facturas: FacturaReporteDTO[]): void {
     elemento('contador-HISTORICO').textContent = String(facturas.length);
 }
 
-function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
+/** Texto "Pagina X de Y" y botones Anterior/Siguiente. Se oculta si todo entra en una sola pagina. */
+function dibujarPaginacion(pagina: PaginaDTO<FacturaReporteDTO>): void {
+    const totalPaginas = Math.max(1, pagina.totalPaginas);
+    paginacion.hidden = totalPaginas <= 1;
+    textoPagina.textContent = `Página ${pagina.pagina + 1} de ${totalPaginas}`;
+    btnPaginaAnterior.disabled = pagina.pagina === 0;
+    btnPaginaSiguiente.disabled = pagina.pagina >= totalPaginas - 1;
+}
+
+function dibujarFacturas(pagina: PaginaDTO<FacturaReporteDTO>): void {
+    const facturas = pagina.contenido;
     facturasBody.replaceChildren();   // vacia la tabla
     facturasPie.replaceChildren();
 
@@ -324,11 +349,17 @@ function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
             datoArca.className = 'dato-arca';
             datoArca.textContent = `C ${factura.numeroArca ?? ''} · CAE ${factura.cae}`;
             celdaEstado.append(datoArca);
+        } else if (factura.estado === 'ANULADA' && factura.caeNotaCredito !== null) {
+            // Anulada en ARCA: numero y CAE de la Nota de Credito C que la anulo
+            const datoArca = document.createElement('small');
+            datoArca.className = 'dato-arca';
+            datoArca.textContent = `NC C ${factura.numeroNotaCredito ?? ''} · CAE ${factura.caeNotaCredito}`;
+            celdaEstado.append(datoArca);
         }
 
         // Las acciones dependen del estado: un borrador se edita o se emite;
-        // una emitida se edita o se anula; una facturada (con CAE) solo se ve;
-        // una anulada ya no admite cambios.
+        // una emitida se edita o se anula; una facturada (con CAE) se ve o se anula
+        // en ARCA con una nota de credito; una anulada ya no admite cambios.
         const acciones = document.createElement('div');
         acciones.className = 'acciones';
         if (factura.estado === 'BORRADOR') {
@@ -342,10 +373,15 @@ function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
                 boton('Anular', 'aviso', () => void anular(factura)),
             );
         } else if (factura.estado === 'FACTURADA') {
+            acciones.append(
+                boton('Ver', '', () => void abrirFormularioEdicion(factura)),
+                boton('Anular en ARCA', 'aviso', () => void anularEnArca(factura)),
+            );
+        } else if (factura.estado === 'ANULADA' && factura.cae !== null) {
             acciones.append(boton('Ver', '', () => void abrirFormularioEdicion(factura)));
         }
-        // Una facturada ya esta registrada en ARCA: no se puede borrar
-        if (factura.estado !== 'FACTURADA') {
+        // Lo que paso por ARCA (facturada, o anulada con nota de credito) queda registrado: no se borra
+        if (factura.cae === null) {
             acciones.append(boton('Eliminar', 'peligro', () => void eliminar(factura)));
         }
 
@@ -363,11 +399,15 @@ function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
         facturasBody.append(fila);
     }
 
-    // Pie: cantidad y total. En el historico las anuladas no suman (no son ventas).
-    const sumables = vistaActual === 'ANULADA' ? facturas : facturas.filter((f) => f.estado !== 'ANULADA');
-    const total = sumables.reduce((suma, f) => suma + f.importeTotal, 0);
+    // Pie: cantidad y total de TODOS los resultados filtrados (no solo de esta pagina).
+    // Los calcula el backend; en el historico las anuladas no suman (no son ventas).
+    const total = pagina.importeTotal;
+    const desde = pagina.pagina * pagina.tamano + 1;
+    const hasta = desde + facturas.length - 1;
     const pie = document.createElement('tr');
-    const cantidad = celda(`${facturas.length} ${facturas.length === 1 ? 'comprobante' : 'comprobantes'}`);
+    const cantidad = celda(pagina.totalPaginas > 1
+        ? `${desde}–${hasta} de ${pagina.totalElementos} comprobantes`
+        : `${pagina.totalElementos} ${pagina.totalElementos === 1 ? 'comprobante' : 'comprobantes'}`);
     cantidad.colSpan = 3;
     const etiqueta = celda(vistaActual === 'HISTORICO' ? 'Total sin anuladas' : 'Total', 'numero');
     const importe = celda(formatoMoneda.format(total), 'numero');
@@ -385,6 +425,34 @@ async function anular(factura: FacturaReporteDTO): Promise<void> {
     try {
         await service.actualizarEstado(factura.id, 'ANULADA', motivo.trim() || undefined);
         mostrarMensaje(`Factura ${factura.numeroFactura} anulada.`, 'exito');
+        await cargarFacturas();
+    } catch (error) {
+        mostrarMensaje(textoDeError(error), 'error');
+    }
+}
+
+/**
+ * Anula en ARCA una factura FACTURADA: POST /anular-en-arca. ARCA no permite borrar un
+ * comprobante con CAE, asi que se emite una Nota de Credito C asociada por el mismo total.
+ */
+async function anularEnArca(factura: FacturaReporteDTO): Promise<void> {
+    const confirmado = window.confirm(
+        `¿Anular en ARCA la factura ${factura.numeroFactura} (Factura C N° ${factura.numeroArca}) `
+        + `por ${formatoMoneda.format(factura.importeTotal)}?\n\n`
+        + 'Se va a emitir una Nota de Crédito C asociada por el mismo importe. No se puede deshacer.');
+    if (!confirmado) return;
+
+    const motivo = window.prompt(`Motivo de anulación de la factura ${factura.numeroFactura}:`);
+    if (motivo === null) return;   // el usuario apreto "Cancelar"
+    if (motivo.trim() === '') {
+        mostrarMensaje('Para anular en ARCA hay que indicar un motivo.', 'error');
+        return;
+    }
+
+    try {
+        const nc = await service.anularEnArca(factura.id, motivo.trim());
+        mostrarMensaje(`Factura ${factura.numeroFactura} anulada en ARCA con la Nota de Crédito C `
+            + `N° ${nc.numeroNotaCredito} (CAE ${nc.caeNotaCredito}).`, 'exito');
         await cargarFacturas();
     } catch (error) {
         mostrarMensaje(textoDeError(error), 'error');
@@ -494,6 +562,17 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
             descripcionFormulario.textContent =
                 `Autorizada por ARCA (homologación) como Factura C N° ${completa.numeroArca ?? '—'}. `
                 + `CAE ${completa.cae ?? '—'}, vence el ${vence}. Es de solo lectura.`;
+            numeroComprobante.textContent = `N° ${completa.numeroFactura}`;
+            numeroComprobante.classList.remove('pendiente');
+            activarSoloLectura();
+        } else if (completa.estado === 'ANULADA') {
+            // Anulada (en ARCA con nota de credito, o una emitida anulada): solo se muestra
+            tituloFormulario.textContent = `Factura ${completa.numeroFactura} (anulada)`;
+            const motivo = completa.observaciones ? ` Motivo: ${completa.observaciones}.` : '';
+            descripcionFormulario.textContent = completa.caeNotaCredito
+                ? `Facturada como Factura C N° ${completa.numeroArca ?? '—'} (CAE ${completa.cae ?? '—'}) y anulada en ARCA `
+                  + `con la Nota de Crédito C N° ${completa.numeroNotaCredito ?? '—'} (CAE ${completa.caeNotaCredito}).${motivo}`
+                : `Factura anulada.${motivo}`;
             numeroComprobante.textContent = `N° ${completa.numeroFactura}`;
             numeroComprobante.classList.remove('pendiente');
             activarSoloLectura();
@@ -782,10 +861,22 @@ for (const b of botonesMenu) {
 // Filtros
 formFiltros.addEventListener('submit', (evento) => {
     evento.preventDefault();   // sin esto el navegador recargaria la pagina al enviar el form
+    paginaActual = 0;          // con otros filtros, se vuelve a la primera pagina
     void cargarFacturas();
 });
 btnLimpiarFiltros.addEventListener('click', () => {
     formFiltros.reset();
+    paginaActual = 0;
+    void cargarFacturas();
+});
+
+// Paginacion
+btnPaginaAnterior.addEventListener('click', () => {
+    paginaActual--;
+    void cargarFacturas();
+});
+btnPaginaSiguiente.addEventListener('click', () => {
+    paginaActual++;
     void cargarFacturas();
 });
 

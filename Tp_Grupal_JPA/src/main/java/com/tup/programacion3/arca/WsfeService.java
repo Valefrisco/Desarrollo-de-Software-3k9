@@ -19,6 +19,7 @@ public class WsfeService {
     private static final ZoneId ZONA = ZoneId.of("America/Argentina/Buenos_Aires");
 
     public static final int FACTURA_C = 11;
+    public static final int NOTA_CREDITO_C = 13;
 
     private final ArcaProperties props;
     private final WsaaService wsaa;
@@ -44,12 +45,51 @@ public class WsfeService {
      * Si ARCA la rechaza, devuelve resultado "R" con las observaciones.
      */
     public synchronized ResultadoFactura emitirFacturaC(BigDecimal total) {
+        return solicitarCae(FACTURA_C, total, "");
+    }
+
+    /**
+     * Emite una Nota de Credito C (codigo 13) por el total indicado, asociada a una Factura C
+     * ya autorizada. Es la forma de "anular" en ARCA una factura que tiene CAE: el comprobante
+     * original no se borra, la nota de credito lo compensa.
+     *
+     * @param ptoVtaFactura punto de venta de ARCA con el que se emitio la factura
+     * @param numeroFactura numero de la factura en ARCA
+     * @param fechaFactura  fecha con la que se emitio la factura en ARCA
+     */
+    public synchronized ResultadoFactura emitirNotaCreditoC(BigDecimal total, int ptoVtaFactura,
+                                                           long numeroFactura, LocalDate fechaFactura) {
+        // CbtesAsoc: el comprobante que anula esta nota de credito (ARCA lo exige en las NC)
+        String asociado = """
+                      <ar:CbtesAsoc>
+                        <ar:CbteAsoc>
+                          <ar:Tipo>%d</ar:Tipo>
+                          <ar:PtoVta>%d</ar:PtoVta>
+                          <ar:Nro>%d</ar:Nro>
+                          <ar:Cuit>%d</ar:Cuit>
+                          <ar:CbteFch>%s</ar:CbteFch>
+                        </ar:CbteAsoc>
+                      </ar:CbtesAsoc>
+                """.formatted(FACTURA_C, ptoVtaFactura, numeroFactura, props.cuit(),
+                fechaFactura.format(DateTimeFormatter.BASIC_ISO_DATE));
+        return solicitarCae(NOTA_CREDITO_C, total, asociado);
+    }
+
+    /**
+     * Pide el CAE (FECAESolicitar) para un comprobante C a Consumidor Final.
+     * El numero es el ultimo autorizado para ese tipo + 1 (cada tipo tiene su propia numeracion).
+     * Los metodos publicos que lo llaman son synchronized: entre consultar el ultimo numero
+     * y pedir el CAE no se puede meter otro pedido que use el mismo numero.
+     *
+     * @param asociado XML de CbtesAsoc (vacio si no hay comprobante asociado)
+     */
+    private ResultadoFactura solicitarCae(int tipo, BigDecimal total, String asociado) {
         int pv = props.puntoVenta();
-        long numero = ultimoAutorizado(pv, FACTURA_C) + 1;
+        long numero = ultimoAutorizado(pv, tipo) + 1;
         String fecha = LocalDate.now(ZONA).format(DateTimeFormatter.BASIC_ISO_DATE); // yyyyMMdd
         String importe = total.setScale(2, RoundingMode.HALF_UP).toPlainString();
 
-        // El orden de los campos importa: es el que define el WSDL
+        // El orden de los campos importa: es el que define el WSDL (CbtesAsoc va despues de CondicionIVAReceptorId)
         String body = auth() + """
                 <ar:FeCAEReq>
                   <ar:FeCabReq>
@@ -74,20 +114,25 @@ public class WsfeService {
                       <ar:MonId>PES</ar:MonId>
                       <ar:MonCotiz>1</ar:MonCotiz>
                       <ar:CondicionIVAReceptorId>5</ar:CondicionIVAReceptorId>
-                    </ar:FECAEDetRequest>
+                %s    </ar:FECAEDetRequest>
                   </ar:FeDetReq>
                 </ar:FeCAEReq>
-                """.formatted(pv, FACTURA_C, numero, numero, fecha, importe, importe);
+                """.formatted(pv, tipo, numero, numero, fecha, importe, importe, asociado);
 
         Document doc = llamar("FECAESolicitar", body);
 
         List<String> obs = new ArrayList<>(SoapClient.codeMsgList(doc, "Obs"));
         String cae = SoapClient.text(doc, "CAE");
         return new ResultadoFactura(
-                SoapClient.text(doc, "Resultado"), pv, FACTURA_C, numero,
+                SoapClient.text(doc, "Resultado"), pv, tipo, numero,
                 cae == null || cae.isBlank() ? null : cae,
                 SoapClient.text(doc, "CAEFchVto"),
                 obs);
+    }
+
+    /** Punto de venta de ARCA configurado (arca.punto-venta). */
+    public int puntoVenta() {
+        return props.puntoVenta();
     }
 
     /** Sirve para probar conectividad sin autenticación. */
