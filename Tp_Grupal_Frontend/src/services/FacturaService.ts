@@ -1,6 +1,8 @@
 import {
+    CatalogosDTO,
     ErrorDTO,
     EstadoFactura,
+    FacturaCompletaDTO,
     FacturaFiltrosDTO,
     FacturaReporteDTO,
     FacturaRequestDTO,
@@ -8,6 +10,9 @@ import {
 
 /** URL base de la API REST de Spring Boot (FacturaRestController). */
 const API_URL = 'http://localhost:8080/api/facturas';
+
+/** Opciones de los desplegables del formulario (CatalogoRestController). */
+const CATALOGOS_URL = 'http://localhost:8080/api/catalogos';
 
 /**
  * Centraliza todas las llamadas HTTP al backend.
@@ -31,7 +36,20 @@ export class FacturaService {
         return this.procesarRespuesta<FacturaReporteDTO[]>(respuesta);
     }
 
+    // GET /api/catalogos  (puntos de venta, clientes, condiciones IVA, monedas, listas y articulos)
+    async obtenerCatalogos(): Promise<CatalogosDTO> {
+        const respuesta = await fetch(CATALOGOS_URL);
+        return this.procesarRespuesta<CatalogosDTO>(respuesta);
+    }
+
+    // GET /api/facturas/{id}  (factura con IDs y renglones, para cargarla en el formulario)
+    async obtenerFactura(id: number): Promise<FacturaCompletaDTO> {
+        const respuesta = await fetch(`${API_URL}/${id}`);
+        return this.procesarRespuesta<FacturaCompletaDTO>(respuesta);
+    }
+
     // POST /api/facturas  (responde 201 con la factura creada)
+    // Con estado 'BORRADOR' queda guardada sin emitir; sin estado o con 'EMITIDA' se emite.
     async crearFactura(factura: FacturaRequestDTO): Promise<FacturaReporteDTO> {
         const respuesta = await fetch(API_URL, {
             method: 'POST',
@@ -41,7 +59,17 @@ export class FacturaService {
         return this.procesarRespuesta<FacturaReporteDTO>(respuesta);
     }
 
-    // PUT /api/facturas/{id}  (responde 200). Se usa para anular.
+    // PUT /api/facturas/{id}  (responde 200). Edita la factura; si es un borrador y va con estado 'EMITIDA', ademas lo emite.
+    async actualizarFactura(id: number, factura: FacturaRequestDTO): Promise<FacturaReporteDTO> {
+        const respuesta = await fetch(`${API_URL}/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(factura),
+        });
+        return this.procesarRespuesta<FacturaReporteDTO>(respuesta);
+    }
+
+    // PUT /api/facturas/{id}  (responde 200). Solo cambia el estado: anular o emitir un borrador.
     async actualizarEstado(id: number, estado: string, observaciones?: string): Promise<FacturaReporteDTO> {
         // Actualizacion parcial: solo viajan estado y observaciones.
         // El backend valida que el estado sea correcto (400 si no lo es).

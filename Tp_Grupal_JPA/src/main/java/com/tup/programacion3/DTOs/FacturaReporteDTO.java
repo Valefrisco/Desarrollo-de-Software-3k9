@@ -16,12 +16,12 @@ public class FacturaReporteDTO {
     // OJO: el orden de los campos define el orden de los parametros del
     // constructor (@AllArgsConstructor) que usa el SELECT new del repositorio.
     private Long id;               // necesario para PUT/DELETE desde el frontend
-    private Long numeroFactura;
+    private Long numeroFactura;    // null mientras la factura es BORRADOR
     private LocalDateTime fechaEmision;
     private String clienteDenominacion;
     private String condicionIva;
     private String puntoVentaDescripcion;
     private double importeTotal;
-    private String estado;         // EMITIDA / ANULADA
+    private String estado;         // BORRADOR / EMITIDA / ANULADA
     private long cantidadItems;
 }

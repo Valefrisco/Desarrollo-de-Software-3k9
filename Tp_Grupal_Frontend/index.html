@@ -4,190 +4,460 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Facturación de Ventas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ===== Tokens: papel, tinta y papel carbonico ===== */
         :root {
-            --fondo: #f4f5f7;
-            --tarjeta: #ffffff;
-            --texto: #1f2328;
-            --texto-suave: #5b6470;
-            --borde: #d8dce1;
-            --primario: #1f6feb;
-            --peligro: #c62828;
-            --aviso: #b26a00;
-            --ok: #1a7f37;
+            --escritorio: #e6ebf0;      /* fondo: el escritorio donde se apoya el comprobante */
+            --papel: #ffffff;
+            --tinta: #17243a;           /* texto y barra lateral */
+            --tinta-suave: #5a6a80;
+            --linea: #cbd3dd;
+            --linea-suave: #e3e8ee;
+            --carbonico: #2448a8;       /* acciones principales */
+            --carbonico-claro: #e7ecf8;
+            --emitida: #2e7a4c;
+            --emitida-fondo: #e3f1e8;
+            --anulada: #b02a22;
+            --anulada-fondo: #f8e6e4;
+            --borrador: #8a6a12;
+            --borrador-fondo: #f5eed9;
+            --radio: 6px;
         }
         * { box-sizing: border-box; }
+        html, body { margin: 0; }
         body {
-            margin: 0;
-            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            background: var(--fondo);
-            color: var(--texto);
+            font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 15px;
+            line-height: 1.5;
+            background: var(--escritorio);
+            color: var(--tinta);
         }
-        header { background: var(--texto); color: #fff; padding: 16px 24px; }
-        header h1 { margin: 0; font-size: 20px; }
-        main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 24px; }
-        section { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 8px; padding: 20px; }
-        h2 { margin: 0 0 16px; font-size: 17px; }
-        h3 { margin: 20px 0 12px; font-size: 15px; }
-        .fila { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-        label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-suave); }
+        [hidden] { display: none !important; }
+        button, input, select { font: inherit; color: inherit; }
+        :focus-visible { outline: 2px solid var(--carbonico); outline-offset: 2px; }
+
+        /* ===== Estructura: barra lateral + modulo activo ===== */
+        .app {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            min-height: 100vh;
+            background: linear-gradient(to right, var(--tinta) 240px, var(--escritorio) 240px);
+        }
+
+        .lateral {
+            background: var(--tinta);
+            color: #dce3ec;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            min-width: 0;
+        }
+        .marca { padding: 0 8px; }
+        .marca strong { display: block; font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+        .marca span { font-size: 13px; color: #9fb0c6; }
+
+        .btn-nueva {
+            width: 100%;
+            padding: 11px 14px;
+            border: 0;
+            border-radius: var(--radio);
+            background: #fff;
+            color: var(--tinta);
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+        }
+        .btn-nueva:hover { background: var(--carbonico-claro); }
+        .btn-nueva[aria-current="page"] { box-shadow: inset 4px 0 0 var(--carbonico); }
+
+        .menu { display: flex; flex-direction: column; gap: 2px; }
+        .menu-titulo { font-size: 12px; color: #8c9db4; padding: 0 10px 6px; }
+        .menu button {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 9px 10px;
+            border: 0;
+            border-radius: var(--radio);
+            background: transparent;
+            color: #dce3ec;
+            text-align: left;
+            cursor: pointer;
+        }
+        .menu button:hover { background: #22324d; }
+        .menu button[aria-current="page"] { background: #2a3d60; color: #fff; font-weight: 600; }
+        .contador { font-size: 13px; font-variant-numeric: tabular-nums; color: #9fb0c6; }
+        .menu button[aria-current="page"] .contador { color: #fff; }
+
+        .pie-lateral { margin-top: auto; font-size: 12px; color: #8c9db4; padding: 0 10px; }
+
+        main { padding: 32px 40px 56px; min-width: 0; }
+        .contenido { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+        .contenido > * { min-width: 0; }   /* que una tabla ancha no estire la pagina: scrollea dentro de su caja */
+
+        .encabezado-vista { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+        .encabezado-vista h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+        .encabezado-vista p { margin: 4px 0 0; color: var(--tinta-suave); }
+
+        /* ===== Botones ===== */
+        .boton {
+            padding: 8px 14px;
+            border-radius: var(--radio);
+            border: 1px solid var(--linea);
+            background: var(--papel);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .boton:hover { border-color: var(--tinta-suave); }
+        .boton.primario { background: var(--carbonico); border-color: var(--carbonico); color: #fff; }
+        .boton.primario:hover { background: #1d3b8c; }
+        .boton.peligro { color: var(--anulada); }
+        .boton.peligro:hover { border-color: var(--anulada); }
+        .boton.aviso { color: var(--borrador); }
+        .boton.aviso:hover { border-color: var(--borrador); }
+        .boton.chico { padding: 5px 10px; font-size: 13px; }
+        .boton:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* ===== Mensajes ===== */
+        #mensaje { padding: 12px 16px; border-radius: var(--radio); font-weight: 500; border-left: 4px solid; }
+        #mensaje:not(.exito):not(.error) { display: none; }
+        #mensaje.exito { background: var(--emitida-fondo); color: var(--emitida); }
+        #mensaje.error { background: var(--anulada-fondo); color: var(--anulada); }
+
+        /* ===== Campos ===== */
+        label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; color: var(--tinta-suave); }
         input, select {
-            font: inherit; font-size: 14px; padding: 7px 9px; min-width: 130px;
-            border: 1px solid var(--borde); border-radius: 6px; background: #fff; color: var(--texto);
+            font-size: 14px;
+            padding: 8px 10px;
+            min-width: 0;
+            border: 1px solid var(--linea);
+            border-radius: var(--radio);
+            background: var(--papel);
+            color: var(--tinta);
         }
-        label.ancho input { min-width: 260px; }
-        button {
-            font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 6px;
-            border: 1px solid var(--borde); background: #fff; color: var(--texto); cursor: pointer;
+        select:disabled { background: var(--linea-suave); color: var(--tinta-suave); }
+
+        /* ===== Filtros y listado ===== */
+        .filtros {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            padding: 16px;
+            background: var(--papel);
+            border: 1px solid var(--linea);
+            border-radius: var(--radio);
         }
-        button.primario { background: var(--primario); border-color: var(--primario); color: #fff; }
-        button.peligro { color: var(--peligro); border-color: var(--peligro); }
-        button.aviso { color: var(--aviso); border-color: var(--aviso); }
-        button:disabled { opacity: 0.4; cursor: not-allowed; }
-        .tabla-contenedor { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
-        th { font-size: 12px; text-transform: uppercase; color: var(--texto-suave); }
+        .filtros .acciones-filtro { display: flex; gap: 8px; margin-left: auto; }
+
+        .listado { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+        th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--linea-suave); white-space: nowrap; }
+        thead th { font-size: 12px; font-weight: 600; color: var(--tinta-suave); background: #f6f8fa; border-bottom: 1px solid var(--linea); }
+        tbody tr:hover { background: #fafbfc; }
         td.numero, th.numero { text-align: right; }
-        td.vacio { text-align: center; color: var(--texto-suave); padding: 16px; }
+        td.vacio { text-align: center; color: var(--tinta-suave); padding: 40px 16px; white-space: normal; }
+        td.cliente strong { display: block; font-weight: 600; }
+        td.cliente small, td.fecha small, td.total small { display: block; font-size: 12px; font-weight: 400; color: var(--tinta-suave); }
+        td.cliente { white-space: normal; min-width: 200px; }
+        td.pv { white-space: normal; min-width: 140px; }
+        td.nro { font-weight: 600; }
+        tr.anulada td { color: var(--tinta-suave); }
+        tr.anulada td.total span { text-decoration: line-through; }
+        tfoot td { font-weight: 700; border-bottom: 0; border-top: 1px solid var(--linea); background: #f6f8fa; }
         .acciones { display: flex; gap: 6px; }
-        .estado { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
-        .estado.EMITIDA { background: #dafbe1; color: var(--ok); }
-        .estado.ANULADA { background: #ffebe9; color: var(--peligro); }
-        .pie-formulario { margin-top: 16px; display: flex; justify-content: flex-end; }
-        #mensaje { display: none; padding: 12px 16px; border-radius: 6px; font-size: 14px; }
-        #mensaje.exito { display: block; background: #dafbe1; color: var(--ok); }
-        #mensaje.error { display: block; background: #ffebe9; color: var(--peligro); }
+
+        .estado { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+        .estado.BORRADOR { background: var(--borrador-fondo); color: var(--borrador); }
+        .estado.EMITIDA { background: var(--emitida-fondo); color: var(--emitida); }
+        .estado.ANULADA { background: var(--anulada-fondo); color: var(--anulada); }
+
+        /* ===== El comprobante (formulario de alta / edicion) ===== */
+        .comprobante {
+            min-width: 0;
+            background: var(--papel);
+            border: 1px solid var(--linea);
+            border-radius: 2px;
+            box-shadow: 0 18px 40px -24px rgba(23, 36, 58, 0.45);
+            max-width: 960px;
+        }
+        .comprobante-cabecera {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            border-bottom: 2px solid var(--tinta);
+        }
+        .emisor, .datos-comprobante { padding: 22px 24px; display: grid; gap: 12px; align-content: start; }
+        .emisor strong { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+        .datos-comprobante { border-left: 1px solid var(--linea); }
+        .datos-comprobante h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+        .datos-comprobante .numero-comprobante { font-variant-numeric: tabular-nums; font-weight: 600; margin-top: -10px; }
+        .datos-comprobante .numero-comprobante.pendiente { color: var(--borrador); font-weight: 500; }
+
+        /* El recuadro con la letra del comprobante, como en una factura impresa */
+        .letra {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 76px;
+            border-left: 2px solid var(--tinta);
+            border-right: 2px solid var(--tinta);
+            border-bottom: 2px solid var(--tinta);
+            margin-bottom: -2px;
+            background: var(--papel);
+            padding: 10px 0;
+        }
+        .letra b { font-size: 46px; font-weight: 800; line-height: 1; }
+        .letra small { font-size: 11px; color: var(--tinta-suave); margin-top: 4px; }
+
+        .comprobante-seccion { padding: 20px 24px; border-bottom: 1px solid var(--linea); }
+        .comprobante-seccion h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; }
+        .grilla-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .grilla-campos .ancho { grid-column: 1 / -1; }
+
+        .renglones th, .renglones td { padding: 9px 10px; }
+        .renglones thead th { background: transparent; }
+        .renglones .agregar td { background: #f6f8fa; border-bottom: 0; }
+        .renglones .agregar select { width: 100%; min-width: 220px; }
+        .renglones .agregar input { width: 110px; text-align: right; }
+
+        .comprobante-pie { display: grid; grid-template-columns: 1fr 300px; gap: 24px; padding: 20px 24px; align-items: start; }
+        .nota { font-size: 13px; color: var(--tinta-suave); margin: 0; max-width: 46ch; }
+        .totales { display: grid; grid-template-columns: 1fr auto; gap: 6px 0; font-variant-numeric: tabular-nums; margin: 0; }
+        .totales dt { color: var(--tinta-suave); }
+        .totales dd { margin: 0; padding-left: 16px; text-align: right; font-weight: 600; }
+        .totales .total { font-size: 20px; font-weight: 800; color: var(--tinta); padding-top: 8px; border-top: 2px solid var(--tinta); }
+
+        .comprobante-acciones { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding: 16px 24px; background: #f6f8fa; border-top: 1px solid var(--linea); }
+
+        /* ===== Pantallas chicas: la barra lateral pasa arriba ===== */
+        @media (max-width: 880px) {
+            .app { grid-template-columns: 1fr; background: var(--escritorio); }
+            .lateral { position: static; height: auto; padding: 16px; gap: 12px; }
+            .menu { flex-direction: row; overflow-x: auto; }
+            .menu-titulo, .pie-lateral { display: none; }
+            .menu button { width: auto; gap: 8px; }
+            main { padding: 20px 16px 40px; }
+            .comprobante-cabecera { grid-template-columns: 1fr auto; }
+            .datos-comprobante { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--linea); }
+            .comprobante-pie { grid-template-columns: 1fr; }
+            .emisor, .datos-comprobante, .comprobante-seccion, .comprobante-pie { padding-left: 16px; padding-right: 16px; }
+            .encabezado-vista h1 { font-size: 24px; }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+            .comprobante { animation: aparecer 180ms ease-out; }
+            @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        }
     </style>
 </head>
 <body>
-<header>
-    <h1>Facturación de Ventas</h1>
-</header>
-
-<main>
-    <!-- Mensajes de exito o error (los muestra app.ts) -->
-    <div id="mensaje" role="status"></div>
+<div class="app">
 
     <!-- ============================================================
-         SECCION 1: Formulario de busqueda con filtros (GET)
+         BARRA LATERAL: modulos de la aplicacion
          ============================================================ -->
-    <section>
-        <h2>Buscar comprobantes</h2>
-        <form id="form-filtros" class="fila">
-            <label>Fecha desde
-                <input type="date" id="filtro-fecha-desde">
-            </label>
-            <label>Fecha hasta
-                <input type="date" id="filtro-fecha-hasta">
-            </label>
-            <label>Estado
-                <select id="filtro-estado">
-                    <option value="">Todos</option>
-                    <option value="EMITIDA">Emitida</option>
-                    <option value="ANULADA">Anulada</option>
-                </select>
-            </label>
-            <label>Monto mínimo
-                <input type="number" id="filtro-monto-minimo" min="0" step="0.01" placeholder="$">
-            </label>
-            <button type="submit" class="primario">Buscar</button>
-            <button type="button" id="btn-limpiar-filtros">Limpiar</button>
-        </form>
-    </section>
-
-    <!-- ============================================================
-         SECCION 2: Alta de factura con tabla dinamica de renglones (POST)
-         ============================================================ -->
-    <section>
-        <h2>Nueva factura</h2>
-        <form id="form-factura">
-            <h3>Cabecera</h3>
-            <div class="fila">
-                <label>Punto de venta (ID)
-                    <input type="number" id="punto-venta-id" min="1" value="1" required>
-                </label>
-                <label>Cliente (ID)
-                    <input type="number" id="cliente-id" min="1" value="1" placeholder="vacío = Consumidor Final">
-                </label>
-                <label>Condición IVA (ID)
-                    <input type="number" id="condicion-iva-id" min="1" value="1" required>
-                </label>
-                <label>Moneda (ID)
-                    <input type="number" id="tipo-moneda-id" min="1" value="1" required>
-                </label>
-                <label>Lista de precios (ID)
-                    <input type="number" id="lista-precio-id" min="1" value="1" required>
-                </label>
-                <label class="ancho">Observaciones
-                    <input type="text" id="observaciones" maxlength="255">
-                </label>
-            </div>
-
-            <h3>Renglones</h3>
-            <div class="fila">
-                <label>Artículo (ID)
-                    <input type="number" id="item-articulo-id" min="1">
-                </label>
-                <label>Cantidad
-                    <input type="number" id="item-cantidad" min="0.01" step="0.01">
-                </label>
-                <label>Bonificación %
-                    <input type="number" id="item-bonificacion" min="0" max="100" step="0.01" placeholder="0">
-                </label>
-                <button type="button" id="btn-agregar-item">Agregar renglón</button>
-            </div>
-
-            <div class="tabla-contenedor">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Artículo (ID)</th>
-                        <th class="numero">Cantidad</th>
-                        <th class="numero">Bonificación %</th>
-                        <th></th>
-                    </tr>
-                    </thead>
-                    <tbody id="items-body">
-                    <!-- Lo completa app.ts a partir de los renglones en memoria -->
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="pie-formulario">
-                <button type="submit" class="primario" id="btn-emitir">Emitir factura</button>
-            </div>
-        </form>
-    </section>
-
-    <!-- ============================================================
-         SECCION 3: Listado de comprobantes con acciones por fila (PUT / DELETE)
-         ============================================================ -->
-    <section>
-        <h2>Comprobantes registrados</h2>
-        <div class="tabla-contenedor">
-            <table>
-                <thead>
-                <tr>
-                    <th>N°</th>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Cond. IVA</th>
-                    <th>Punto de venta</th>
-                    <th class="numero">Ítems</th>
-                    <th class="numero">Total</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-                </thead>
-                <tbody id="facturas-body">
-                <!-- Lo completa app.ts con lo que devuelve GET /api/facturas -->
-                </tbody>
-            </table>
+    <aside class="lateral">
+        <div class="marca">
+            <strong>Facturación 3K9</strong>
+            <span>Ventas y comprobantes</span>
         </div>
-    </section>
-</main>
+
+        <button type="button" class="btn-nueva" id="btn-nueva-factura">Nueva factura</button>
+
+        <nav class="menu" aria-label="Comprobantes">
+            <span class="menu-titulo">Comprobantes</span>
+            <!-- data-vista: que muestra cada modulo (un estado, o todos en el historico) -->
+            <button type="button" data-vista="BORRADOR">Borradores <span class="contador" id="contador-BORRADOR">0</span></button>
+            <button type="button" data-vista="EMITIDA">Emitidas <span class="contador" id="contador-EMITIDA">0</span></button>
+            <button type="button" data-vista="ANULADA">Anuladas <span class="contador" id="contador-ANULADA">0</span></button>
+            <button type="button" data-vista="HISTORICO">Histórico <span class="contador" id="contador-HISTORICO">0</span></button>
+        </nav>
+
+        <div class="pie-lateral">Usuario: admin</div>
+    </aside>
+
+    <main>
+        <div class="contenido">
+            <!-- Mensajes de exito o error (los muestra app.ts) -->
+            <div id="mensaje" role="status"></div>
+
+            <!-- ============================================================
+                 MODULO DE LISTADO: borradores, emitidas, anuladas o historico
+                 ============================================================ -->
+            <section id="vista-listado" aria-labelledby="titulo-listado">
+                <div class="contenido">
+                    <div class="encabezado-vista">
+                        <div>
+                            <h1 id="titulo-listado">Histórico</h1>
+                            <p id="descripcion-listado">Todos los comprobantes, en cualquier estado.</p>
+                        </div>
+                    </div>
+
+                    <!-- Filtros de busqueda (GET con parametros) -->
+                    <form id="form-filtros" class="filtros">
+                        <label>Fecha desde
+                            <input type="date" id="filtro-fecha-desde">
+                        </label>
+                        <label>Fecha hasta
+                            <input type="date" id="filtro-fecha-hasta">
+                        </label>
+                        <!-- El estado solo se elige en el historico: los otros modulos ya filtran por su estado -->
+                        <label id="campo-filtro-estado">Estado
+                            <select id="filtro-estado">
+                                <option value="">Todos</option>
+                                <option value="BORRADOR">Borrador</option>
+                                <option value="EMITIDA">Emitida</option>
+                                <option value="ANULADA">Anulada</option>
+                            </select>
+                        </label>
+                        <label>Monto mínimo
+                            <input type="number" id="filtro-monto-minimo" min="0" step="0.01" placeholder="$">
+                        </label>
+                        <div class="acciones-filtro">
+                            <button type="button" class="boton" id="btn-limpiar-filtros">Limpiar</button>
+                            <button type="submit" class="boton primario">Buscar</button>
+                        </div>
+                    </form>
+
+                    <div class="listado">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>N°</th>
+                                <th>Fecha</th>
+                                <th>Cliente</th>
+                                <th>Punto de venta</th>
+                                <th class="numero">Total</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                            </thead>
+                            <tbody id="facturas-body">
+                            <!-- Lo completa app.ts con lo que devuelve GET /api/facturas -->
+                            </tbody>
+                            <tfoot id="facturas-pie"></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 MODULO NUEVA / EDITAR FACTURA: el formulario es el comprobante.
+                 POST para crear, PUT para editar. Arranca oculto.
+                 ============================================================ -->
+            <section id="seccion-factura" hidden aria-labelledby="titulo-formulario">
+                <div class="contenido">
+                    <div class="encabezado-vista">
+                        <div>
+                            <h1 id="titulo-formulario">Nueva factura</h1>
+                            <p id="descripcion-formulario">Completá el comprobante. Podés guardarlo como borrador o emitirlo.</p>
+                        </div>
+                    </div>
+
+                    <form id="form-factura" class="comprobante">
+                        <!-- Cabecera: emisor | letra | datos del comprobante -->
+                        <div class="comprobante-cabecera">
+                            <div class="emisor">
+                                <strong>Facturación 3K9</strong>
+                                <label>Punto de venta
+                                    <select id="punto-venta-id" required></select>
+                                </label>
+                            </div>
+                            <div class="letra" aria-label="Tipo de comprobante">
+                                <b id="letra-comprobante">B</b>
+                                <small id="codigo-comprobante">Cód. 006</small>
+                            </div>
+                            <div class="datos-comprobante">
+                                <h2>Factura</h2>
+                                <span class="numero-comprobante pendiente" id="numero-comprobante">El número se asigna al emitir</span>
+                                <label>Moneda
+                                    <select id="tipo-moneda-id" required></select>
+                                </label>
+                                <label>Lista de precios
+                                    <select id="lista-precio-id" required></select>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Receptor -->
+                        <div class="comprobante-seccion">
+                            <h3>Cliente</h3>
+                            <div class="grilla-campos">
+                                <label>Cliente
+                                    <select id="cliente-id"></select>
+                                </label>
+                                <label>Condición IVA
+                                    <select id="condicion-iva-id" required></select>
+                                </label>
+                                <label class="ancho">Observaciones
+                                    <input type="text" id="observaciones" maxlength="255" placeholder="Opcional">
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Renglones -->
+                        <div class="comprobante-seccion">
+                            <h3>Detalle</h3>
+                            <div class="listado">
+                                <table class="renglones">
+                                    <thead>
+                                    <tr>
+                                        <th>Artículo</th>
+                                        <th class="numero">Cantidad</th>
+                                        <th class="numero">Precio unit.</th>
+                                        <th class="numero">Bonif. %</th>
+                                        <th class="numero">Subtotal</th>
+                                        <th></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="items-body">
+                                    <!-- Lo completa app.ts a partir de los renglones en memoria -->
+                                    </tbody>
+                                    <tfoot>
+                                    <tr class="agregar">
+                                        <td><select id="item-articulo-id" aria-label="Artículo"></select></td>
+                                        <td class="numero"><input type="number" id="item-cantidad" min="0.01" step="0.01" placeholder="Cantidad" aria-label="Cantidad"></td>
+                                        <td></td>
+                                        <td class="numero"><input type="number" id="item-bonificacion" min="0" max="100" step="0.01" placeholder="0" aria-label="Bonificación %"></td>
+                                        <td></td>
+                                        <td><button type="button" class="boton chico" id="btn-agregar-item">Agregar</button></td>
+                                    </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Totales (estimados con la lista de precios; el backend los recalcula al guardar) -->
+                        <div class="comprobante-pie">
+                            <p class="nota">Los precios de lista incluyen IVA. El neto y el IVA se calculan sobre el subtotal de cada renglón.</p>
+                            <dl class="totales">
+                                <dt>Neto gravado</dt><dd id="total-neto">$ 0,00</dd>
+                                <dt>IVA 21 %</dt><dd id="total-iva">$ 0,00</dd>
+                                <dt class="total">Total</dt><dd class="total" id="total-comprobante">$ 0,00</dd>
+                            </dl>
+                        </div>
+
+                        <div class="comprobante-acciones">
+                            <button type="button" class="boton" id="btn-cancelar">Cancelar</button>
+                            <button type="button" class="boton" id="btn-guardar-borrador">Guardar borrador</button>
+                            <button type="submit" class="boton primario" id="btn-emitir">Emitir factura</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
 
 <!-- El navegador ejecuta el JavaScript COMPILADO (dist/), no el .ts -->
 <script type="module" src="dist/app.js"></script>

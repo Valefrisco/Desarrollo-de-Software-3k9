@@ -1,4 +1,5 @@
 import {
+    CatalogosDTO,
     EstadoFactura,
     FacturaDetalleRequestDTO,
     FacturaFiltrosDTO,
@@ -8,13 +9,49 @@ import {
 import { FacturaService } from './services/FacturaService.js';
 
 // =====================================================================
-// PARTE 1: INICIO Y UTILIDADES
+// PARTE 1: ESTADO DE LA PANTALLA Y UTILIDADES
 // =====================================================================
 
 const service = new FacturaService();
 
-/** Renglones de la factura que se esta cargando. Viven en memoria hasta "Emitir". */
+/** Modulos del listado: uno por estado, mas el historico (todos). */
+type Vista = EstadoFactura | 'HISTORICO';
+
+/** Modulo de listado que se esta mostrando. Al abrir la pagina: el historico. */
+let vistaActual: Vista = 'HISTORICO';
+
+/** Renglones de la factura que se esta cargando. Viven en memoria hasta guardar o emitir. */
 let items: FacturaDetalleRequestDTO[] = [];
+
+/** Factura que se esta editando (borrador o emitida); null = el formulario es de alta. */
+let facturaEditando: { id: number; estado: EstadoFactura; numeroFactura: number | null } | null = null;
+
+/** Opciones de los desplegables (GET /api/catalogos). Se cargan una vez al abrir la pagina. */
+let catalogos: CatalogosDTO | null = null;
+
+/** Textos de cada modulo del listado. */
+const VISTAS: Record<Vista, { titulo: string; descripcion: string; vacio: string }> = {
+    BORRADOR: {
+        titulo: 'Borradores',
+        descripcion: 'Comprobantes guardados sin emitir. Se pueden editar o emitir.',
+        vacio: 'No hay borradores. Desde «Nueva factura» podés guardar uno sin emitirlo.',
+    },
+    EMITIDA: {
+        titulo: 'Emitidas',
+        descripcion: 'Facturas emitidas. Se pueden editar o anular.',
+        vacio: 'No hay facturas emitidas con estos filtros.',
+    },
+    ANULADA: {
+        titulo: 'Anuladas',
+        descripcion: 'Facturas anuladas. Quedan como registro y no se pueden modificar.',
+        vacio: 'No hay facturas anuladas.',
+    },
+    HISTORICO: {
+        titulo: 'Histórico',
+        descripcion: 'Todos los comprobantes, en cualquier estado.',
+        vacio: 'No hay comprobantes con estos filtros.',
+    },
+};
 
 /** Busca un elemento del HTML por id. Si no existe, avisa con un error claro. */
 function elemento<T extends HTMLElement>(id: string): T {
@@ -27,32 +64,48 @@ function elemento<T extends HTMLElement>(id: string): T {
 
 // --- Referencias a los elementos del HTML (una sola vez, al cargar) ---
 const mensaje = elemento<HTMLDivElement>('mensaje');
+const botonesMenu = Array.from(document.querySelectorAll<HTMLButtonElement>('.menu button[data-vista]'));
+const btnNuevaFactura = elemento<HTMLButtonElement>('btn-nueva-factura');
 
-// Seccion 1: filtros
+// Modulo de listado
+const vistaListado = elemento<HTMLElement>('vista-listado');
+const tituloListado = elemento<HTMLHeadingElement>('titulo-listado');
+const descripcionListado = elemento<HTMLParagraphElement>('descripcion-listado');
 const formFiltros = elemento<HTMLFormElement>('form-filtros');
 const filtroFechaDesde = elemento<HTMLInputElement>('filtro-fecha-desde');
 const filtroFechaHasta = elemento<HTMLInputElement>('filtro-fecha-hasta');
+const campoFiltroEstado = elemento<HTMLLabelElement>('campo-filtro-estado');
 const filtroEstado = elemento<HTMLSelectElement>('filtro-estado');
 const filtroMontoMinimo = elemento<HTMLInputElement>('filtro-monto-minimo');
 const btnLimpiarFiltros = elemento<HTMLButtonElement>('btn-limpiar-filtros');
+const facturasBody = elemento<HTMLTableSectionElement>('facturas-body');
+const facturasPie = elemento<HTMLTableSectionElement>('facturas-pie');
 
-// Seccion 2: alta de factura
+// Modulo nueva / editar factura (arranca oculto)
+const seccionFactura = elemento<HTMLElement>('seccion-factura');
+const tituloFormulario = elemento<HTMLHeadingElement>('titulo-formulario');
+const descripcionFormulario = elemento<HTMLParagraphElement>('descripcion-formulario');
 const formFactura = elemento<HTMLFormElement>('form-factura');
-const inputPuntoVenta = elemento<HTMLInputElement>('punto-venta-id');
-const inputCliente = elemento<HTMLInputElement>('cliente-id');
-const inputCondicionIva = elemento<HTMLInputElement>('condicion-iva-id');
-const inputTipoMoneda = elemento<HTMLInputElement>('tipo-moneda-id');
-const inputListaPrecio = elemento<HTMLInputElement>('lista-precio-id');
+const letraComprobante = elemento<HTMLElement>('letra-comprobante');
+const codigoComprobante = elemento<HTMLElement>('codigo-comprobante');
+const numeroComprobante = elemento<HTMLSpanElement>('numero-comprobante');
+const selectPuntoVenta = elemento<HTMLSelectElement>('punto-venta-id');
+const selectCliente = elemento<HTMLSelectElement>('cliente-id');
+const selectCondicionIva = elemento<HTMLSelectElement>('condicion-iva-id');
+const selectTipoMoneda = elemento<HTMLSelectElement>('tipo-moneda-id');
+const selectListaPrecio = elemento<HTMLSelectElement>('lista-precio-id');
 const inputObservaciones = elemento<HTMLInputElement>('observaciones');
-const inputItemArticulo = elemento<HTMLInputElement>('item-articulo-id');
+const selectItemArticulo = elemento<HTMLSelectElement>('item-articulo-id');
 const inputItemCantidad = elemento<HTMLInputElement>('item-cantidad');
 const inputItemBonificacion = elemento<HTMLInputElement>('item-bonificacion');
 const btnAgregarItem = elemento<HTMLButtonElement>('btn-agregar-item');
 const itemsBody = elemento<HTMLTableSectionElement>('items-body');
+const totalNeto = elemento<HTMLElement>('total-neto');
+const totalIva = elemento<HTMLElement>('total-iva');
+const totalComprobante = elemento<HTMLElement>('total-comprobante');
+const btnCancelar = elemento<HTMLButtonElement>('btn-cancelar');
+const btnGuardarBorrador = elemento<HTMLButtonElement>('btn-guardar-borrador');
 const btnEmitir = elemento<HTMLButtonElement>('btn-emitir');
-
-// Seccion 3: listado
-const facturasBody = elemento<HTMLTableSectionElement>('facturas-body');
 
 // --- Mensajes al usuario ---
 let temporizadorMensaje: number | undefined;
@@ -79,6 +132,7 @@ function textoDeError(error: unknown): string {
 
 // --- Formatos ---
 const formatoMoneda = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+const TASA_IVA = 0.21;   // la misma que FacturaService.java (precios con IVA incluido)
 
 /** "2026-10-20T16:53:14.0147" -> "20/10/2026 16:53" */
 function formatearFecha(iso: string): string {
@@ -87,12 +141,53 @@ function formatearFecha(iso: string): string {
     return `${dia}/${mes}/${anio} ${hora.slice(0, 5)}`;
 }
 
-/** Lee un <input type="number">: si esta vacio devuelve undefined (el campo no viaja en el JSON). */
-function numeroOpcional(input: HTMLInputElement): number | undefined {
+/** Fecha arriba y hora abajo, en una celda del listado. */
+function fechaConHora(iso: string): HTMLElement {
+    const [fecha, hora] = formatearFecha(iso).split(' ');
+    const contenedor = document.createElement('span');
+    const chico = document.createElement('small');
+    chico.textContent = hora;
+    contenedor.append(fecha, chico);
+    return contenedor;
+}
+
+/** Nombre del cliente y, debajo, su condicion IVA. */
+function clienteConIva(factura: FacturaReporteDTO): HTMLElement {
+    const contenedor = document.createElement('span');
+    const nombre = document.createElement('strong');
+    nombre.textContent = factura.clienteDenominacion;
+    const iva = document.createElement('small');
+    iva.textContent = factura.condicionIva;
+    contenedor.append(nombre, iva);
+    return contenedor;
+}
+
+/** Total arriba y cantidad de items abajo. */
+function totalConItems(factura: FacturaReporteDTO): HTMLElement {
+    const contenedor = document.createElement('div');
+    const importe = document.createElement('span');
+    importe.textContent = formatoMoneda.format(factura.importeTotal);
+    const items = document.createElement('small');
+    items.textContent = `${factura.cantidadItems} ${factura.cantidadItems === 1 ? 'ítem' : 'ítems'}`;
+    contenedor.append(importe, items);
+    return contenedor;
+}
+
+/** Lee un input numerico o un desplegable: si esta vacio devuelve undefined (el campo no viaja en el JSON). */
+function numeroOpcional(input: HTMLInputElement | HTMLSelectElement): number | undefined {
     return input.value.trim() === '' ? undefined : Number(input.value);
 }
 
-// --- Construccion de la tabla con la API del DOM ---
+function redondear(valor: number): number {
+    return Math.round(valor * 100) / 100;
+}
+
+/** "factura 12" o "el borrador" (los borradores todavia no tienen numero). */
+function nombreFactura(factura: { numeroFactura: number | null }): string {
+    return factura.numeroFactura !== null ? `factura ${factura.numeroFactura}` : 'el borrador';
+}
+
+// --- Construccion de tablas con la API del DOM ---
 // Se usa textContent / append (y no innerHTML) para que ningun texto que venga
 // de la base se interprete como HTML (evita inyeccion de codigo, XSS).
 
@@ -115,29 +210,69 @@ function boton(texto: string, clase: string, alHacerClic: () => void): HTMLButto
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = texto;
-    b.className = clase;
+    b.className = `boton chico ${clase}`.trim();
     b.addEventListener('click', alHacerClic);
     return b;
 }
 
 // =====================================================================
-// PARTE 2: LISTADO, FILTROS Y ACCIONES POR FILA (GET, PUT, DELETE)
+// PARTE 2: NAVEGACION ENTRE MODULOS
 // =====================================================================
 
-/** Arma el FacturaFiltrosDTO con lo cargado en el formulario de busqueda. */
+/** Muestra un modulo del listado (borradores, emitidas, anuladas o historico). */
+function mostrarVista(vista: Vista): void {
+    vistaActual = vista;
+    seccionFactura.hidden = true;
+    vistaListado.hidden = false;
+    limpiarFormulario();
+
+    tituloListado.textContent = VISTAS[vista].titulo;
+    descripcionListado.textContent = VISTAS[vista].descripcion;
+    // El filtro de estado solo tiene sentido en el historico
+    campoFiltroEstado.hidden = vista !== 'HISTORICO';
+    if (vista !== 'HISTORICO') filtroEstado.value = '';
+
+    marcarMenu(vista);
+    void cargarFacturas();
+}
+
+/** Resalta en la barra lateral el modulo activo. */
+function marcarMenu(activo: Vista | 'NUEVA'): void {
+    for (const b of botonesMenu) {
+        if (b.dataset.vista === activo) b.setAttribute('aria-current', 'page');
+        else b.removeAttribute('aria-current');
+    }
+    if (activo === 'NUEVA') btnNuevaFactura.setAttribute('aria-current', 'page');
+    else btnNuevaFactura.removeAttribute('aria-current');
+}
+
+// =====================================================================
+// PARTE 3: LISTADO, FILTROS Y ACCIONES POR FILA (GET, PUT, DELETE)
+// =====================================================================
+
+/** Arma el FacturaFiltrosDTO con los filtros cargados y el estado del modulo. */
 function leerFiltros(): FacturaFiltrosDTO {
+    const estado = vistaActual === 'HISTORICO'
+        ? (filtroEstado.value || undefined) as EstadoFactura | undefined
+        : vistaActual;
     return {
         fechaDesde: filtroFechaDesde.value || undefined,
         fechaHasta: filtroFechaHasta.value || undefined,
-        estado: (filtroEstado.value || undefined) as EstadoFactura | undefined,
+        estado,
         montoMinimo: numeroOpcional(filtroMontoMinimo),
     };
 }
 
-/** Pide las facturas al backend (GET) y redibuja la tabla. */
+/** Pide las facturas al backend (GET), actualiza los contadores y redibuja la tabla. */
 async function cargarFacturas(): Promise<void> {
     try {
+        // Sin filtros: para los contadores de la barra lateral
+        const todas = await service.obtenerFacturas({});
+        actualizarContadores(todas);
+
+        // Con los filtros del modulo actual: para la tabla
         const facturas = await service.obtenerFacturas(leerFiltros());
+        facturas.sort((a, b) => b.fechaEmision.localeCompare(a.fechaEmision));   // mas nuevas primero
         dibujarFacturas(facturas);
     } catch (error) {
         dibujarFacturas([]);
@@ -145,41 +280,71 @@ async function cargarFacturas(): Promise<void> {
     }
 }
 
+function actualizarContadores(facturas: FacturaReporteDTO[]): void {
+    const estados: EstadoFactura[] = ['BORRADOR', 'EMITIDA', 'ANULADA'];
+    for (const estado of estados) {
+        elemento(`contador-${estado}`).textContent = String(facturas.filter((f) => f.estado === estado).length);
+    }
+    elemento('contador-HISTORICO').textContent = String(facturas.length);
+}
+
 function dibujarFacturas(facturas: FacturaReporteDTO[]): void {
     facturasBody.replaceChildren();   // vacia la tabla
+    facturasPie.replaceChildren();
 
     if (facturas.length === 0) {
-        facturasBody.append(filaVacia(9, 'No hay comprobantes para mostrar.'));
+        facturasBody.append(filaVacia(7, VISTAS[vistaActual].vacio));
         return;
     }
 
     for (const factura of facturas) {
         const estado = document.createElement('span');
         estado.className = `estado ${factura.estado}`;
-        estado.textContent = factura.estado;
+        estado.textContent = factura.estado.charAt(0) + factura.estado.slice(1).toLowerCase();
 
-        const btnAnular = boton('Anular', 'aviso', () => void anular(factura));
-        btnAnular.disabled = factura.estado === 'ANULADA';   // una anulada no se vuelve a anular
-        const btnEliminar = boton('Eliminar', 'peligro', () => void eliminar(factura));
-
+        // Las acciones dependen del estado: un borrador se edita o se emite;
+        // una emitida se edita o se anula; una anulada ya no admite cambios.
         const acciones = document.createElement('div');
         acciones.className = 'acciones';
-        acciones.append(btnAnular, btnEliminar);
+        if (factura.estado === 'BORRADOR') {
+            acciones.append(
+                boton('Editar', '', () => void abrirFormularioEdicion(factura)),
+                boton('Emitir', 'primario', () => void emitirBorrador(factura)),
+            );
+        } else if (factura.estado === 'EMITIDA') {
+            acciones.append(
+                boton('Editar', '', () => void abrirFormularioEdicion(factura)),
+                boton('Anular', 'aviso', () => void anular(factura)),
+            );
+        }
+        acciones.append(boton('Eliminar', 'peligro', () => void eliminar(factura)));
 
         const fila = document.createElement('tr');
+        if (factura.estado === 'ANULADA') fila.className = 'anulada';
         fila.append(
-            celda(String(factura.numeroFactura)),
-            celda(formatearFecha(factura.fechaEmision)),
-            celda(factura.clienteDenominacion),
-            celda(factura.condicionIva),
-            celda(factura.puntoVentaDescripcion),
-            celda(String(factura.cantidadItems), 'numero'),
-            celda(formatoMoneda.format(factura.importeTotal), 'numero'),
+            celda(factura.numeroFactura !== null ? String(factura.numeroFactura) : '—', 'nro'),
+            celda(fechaConHora(factura.fechaEmision), 'fecha'),
+            celda(clienteConIva(factura), 'cliente'),
+            celda(factura.puntoVentaDescripcion, 'pv'),
+            celda(totalConItems(factura), 'numero total'),
             celda(estado),
             celda(acciones),
         );
         facturasBody.append(fila);
     }
+
+    // Pie: cantidad y total. En el historico las anuladas no suman (no son ventas).
+    const sumables = vistaActual === 'ANULADA' ? facturas : facturas.filter((f) => f.estado !== 'ANULADA');
+    const total = sumables.reduce((suma, f) => suma + f.importeTotal, 0);
+    const pie = document.createElement('tr');
+    const cantidad = celda(`${facturas.length} ${facturas.length === 1 ? 'comprobante' : 'comprobantes'}`);
+    cantidad.colSpan = 3;
+    const etiqueta = celda(vistaActual === 'HISTORICO' ? 'Total sin anuladas' : 'Total', 'numero');
+    const importe = celda(formatoMoneda.format(total), 'numero');
+    const relleno = celda('');
+    relleno.colSpan = 2;
+    pie.append(cantidad, etiqueta, importe, relleno);
+    facturasPie.append(pie);
 }
 
 /** Anulacion logica: PUT con estado ANULADA y el motivo como observaciones. */
@@ -196,46 +361,182 @@ async function anular(factura: FacturaReporteDTO): Promise<void> {
     }
 }
 
-/** Borrado fisico: DELETE, previa confirmacion. */
-async function eliminar(factura: FacturaReporteDTO): Promise<void> {
+/** Emitir un borrador desde el listado: PUT con estado EMITIDA (ahi toma su numero). */
+async function emitirBorrador(factura: FacturaReporteDTO): Promise<void> {
     const confirmado = window.confirm(
-        `¿Eliminar definitivamente la factura ${factura.numeroFactura}? Esta acción no se puede deshacer.`);
+        `¿Emitir el borrador de ${factura.clienteDenominacion} por ${formatoMoneda.format(factura.importeTotal)}?`);
     if (!confirmado) return;
 
     try {
-        await service.eliminarFactura(factura.id);
-        mostrarMensaje(`Factura ${factura.numeroFactura} eliminada.`, 'exito');
+        const emitida = await service.actualizarEstado(factura.id, 'EMITIDA');
+        mostrarMensaje(`Factura ${emitida.numeroFactura} emitida por ${formatoMoneda.format(emitida.importeTotal)}.`, 'exito');
         await cargarFacturas();
     } catch (error) {
         mostrarMensaje(textoDeError(error), 'error');
     }
 }
 
-// Eventos de la seccion de filtros
-formFiltros.addEventListener('submit', (evento) => {
-    evento.preventDefault();   // sin esto el navegador recargaria la pagina al enviar el form
-    void cargarFacturas();
-});
+/** Borrado fisico: DELETE, previa confirmacion. */
+async function eliminar(factura: FacturaReporteDTO): Promise<void> {
+    const confirmado = window.confirm(
+        `¿Eliminar definitivamente ${nombreFactura(factura)}? Esta acción no se puede deshacer.`);
+    if (!confirmado) return;
 
-btnLimpiarFiltros.addEventListener('click', () => {
-    formFiltros.reset();
-    void cargarFacturas();
-});
+    try {
+        await service.eliminarFactura(factura.id);
+        mostrarMensaje(`Se eliminó ${nombreFactura(factura)}.`, 'exito');
+        await cargarFacturas();
+    } catch (error) {
+        mostrarMensaje(textoDeError(error), 'error');
+    }
+}
 
 // =====================================================================
-// PARTE 3: ALTA DE FACTURA (renglones en memoria + POST)
+// PARTE 4: EL COMPROBANTE (formulario de alta / edicion, POST o PUT)
 // =====================================================================
 
-/** Valida los inputs del renglon y lo agrega al array en memoria. */
+/** Muestra el comprobante vacio, con la primera opcion de cada desplegable. */
+function abrirFormularioNuevo(): void {
+    limpiarFormulario();
+    tituloFormulario.textContent = 'Nueva factura';
+    descripcionFormulario.textContent = 'Completá el comprobante. Podés guardarlo como borrador o emitirlo.';
+    mostrarFormulario();
+}
+
+/** Trae la factura completa (GET /{id}) y la carga en el comprobante para editarla. */
+async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void> {
+    try {
+        const completa = await service.obtenerFactura(factura.id);
+        limpiarFormulario();
+        facturaEditando = { id: completa.id, estado: completa.estado, numeroFactura: completa.numeroFactura };
+
+        selectPuntoVenta.value = String(completa.puntoVentaId);
+        selectCliente.value = completa.clienteId !== null ? String(completa.clienteId) : '';
+        selectCondicionIva.value = String(completa.condicionIvaId);
+        selectTipoMoneda.value = String(completa.tipoMonedaId);
+        selectListaPrecio.value = completa.listaPrecioId !== null ? String(completa.listaPrecioId) : '';
+        inputObservaciones.value = completa.observaciones ?? '';
+        items = completa.detalles.map((d) => ({ ...d }));   // copia: se edita en memoria hasta guardar
+        llenarArticulos();   // los articulos dependen de la lista de precios elegida
+        actualizarLetra();
+
+        if (completa.estado === 'EMITIDA') {
+            // Una emitida conserva su numero: no puede cambiar de punto de venta ni volver a borrador
+            tituloFormulario.textContent = `Editar factura ${completa.numeroFactura}`;
+            descripcionFormulario.textContent = 'La factura conserva su número y su punto de venta.';
+            numeroComprobante.textContent = `N° ${completa.numeroFactura}`;
+            numeroComprobante.classList.remove('pendiente');
+            selectPuntoVenta.disabled = true;
+            btnGuardarBorrador.hidden = true;
+            btnEmitir.textContent = 'Guardar cambios';
+        } else {
+            tituloFormulario.textContent = 'Editar borrador';
+            descripcionFormulario.textContent = `Borrador de ${factura.clienteDenominacion}. Guardá los cambios o emitilo.`;
+            btnGuardarBorrador.textContent = 'Guardar cambios';
+        }
+        mostrarFormulario();
+    } catch (error) {
+        mostrarMensaje(textoDeError(error), 'error');
+    }
+}
+
+function mostrarFormulario(): void {
+    vistaListado.hidden = true;
+    seccionFactura.hidden = false;
+    marcarMenu(facturaEditando === null ? 'NUEVA' : vistaActual);
+    window.scrollTo({ top: 0 });
+}
+
+/** Cierra el comprobante, descarta lo cargado y vuelve al modulo de listado. */
+function cerrarFormulario(): void {
+    mostrarVista(vistaActual);
+}
+
+function limpiarFormulario(): void {
+    formFactura.reset();   // vuelve cada campo a su valor inicial (en los desplegables, la primera opcion)
+    facturaEditando = null;
+    items = [];
+    // Botones y campos como en el alta (la edicion de una emitida los cambia)
+    selectPuntoVenta.disabled = false;
+    btnGuardarBorrador.hidden = false;
+    btnGuardarBorrador.textContent = 'Guardar borrador';
+    btnEmitir.textContent = 'Emitir factura';
+    numeroComprobante.textContent = 'El número se asigna al emitir';
+    numeroComprobante.classList.add('pendiente');
+    llenarArticulos();
+    actualizarLetra();
+}
+
+// --- Desplegables ---
+
+/** Reemplaza las opciones de un <select>: muestra el nombre y guarda el ID en el value. */
+function llenarSelect(select: HTMLSelectElement, opciones: { id: number; nombre: string }[], opcionVacia?: string): void {
+    select.replaceChildren();
+    if (opcionVacia !== undefined) {
+        select.append(new Option(opcionVacia, ''));
+    }
+    for (const opcion of opciones) {
+        select.append(new Option(opcion.nombre, String(opcion.id)));
+    }
+}
+
+/** Pide los catalogos (GET /api/catalogos) y arma los desplegables del comprobante. */
+async function cargarCatalogos(): Promise<void> {
+    try {
+        catalogos = await service.obtenerCatalogos();
+        llenarSelect(selectPuntoVenta, catalogos.puntosVenta);
+        llenarSelect(selectCliente, catalogos.clientes, 'Consumidor Final');   // sin cliente
+        llenarSelect(selectCondicionIva, catalogos.condicionesIva);
+        llenarSelect(selectTipoMoneda, catalogos.monedas);
+        llenarSelect(selectListaPrecio, catalogos.listasPrecio);
+        llenarArticulos();
+        actualizarLetra();
+    } catch (error) {
+        mostrarMensaje('No se pudieron cargar las opciones del formulario. ' + textoDeError(error), 'error');
+    }
+}
+
+/** El desplegable de articulos muestra solo los que tienen precio en la lista elegida. */
+function llenarArticulos(): void {
+    const listaId = Number(selectListaPrecio.value);
+    const articulos = (catalogos?.articulos ?? []).filter((a) => a.listaPrecioId === listaId);
+    llenarSelect(
+        selectItemArticulo,
+        articulos.map((a) => ({ id: a.articuloId, nombre: `${a.nombre} — ${formatoMoneda.format(a.precio)}` })),
+        articulos.length > 0 ? 'Elegí un artículo' : 'No hay artículos en esta lista',
+    );
+    dibujarItems();   // nombres, precios y totales dependen de la lista
+}
+
+/**
+ * Letra del comprobante, como en una factura impresa: A si el cliente es Responsable
+ * Inscripto, B para el resto. Es solo visual (no se guarda en la base).
+ */
+function actualizarLetra(): void {
+    const condicion = selectCondicionIva.selectedOptions[0]?.textContent ?? '';
+    const esA = condicion.toLowerCase().includes('inscripto');
+    letraComprobante.textContent = esA ? 'A' : 'B';
+    codigoComprobante.textContent = esA ? 'Cód. 001' : 'Cód. 006';
+}
+
+/** Articulo de la lista de precios elegida (nombre y precio) o undefined si no esta. */
+function articuloDeLista(articuloId: number | undefined) {
+    const listaId = Number(selectListaPrecio.value);
+    return catalogos?.articulos.find((a) => a.articuloId === articuloId && a.listaPrecioId === listaId);
+}
+
+// --- Renglones ---
+
+/** Valida los campos del renglon y lo agrega al array en memoria. */
 function agregarItem(): void {
-    const articuloId = numeroOpcional(inputItemArticulo);
+    const articuloId = numeroOpcional(selectItemArticulo);
     const cantidad = numeroOpcional(inputItemCantidad);
     const bonificacion = numeroOpcional(inputItemBonificacion);
 
     // Validaciones para ayudar al usuario. El backend vuelve a validar todo,
     // porque al servidor se le puede pegar sin pasar por esta pantalla (ej. Postman).
     if (articuloId === undefined || articuloId <= 0) {
-        mostrarMensaje('Indicá el ID del artículo.', 'error');
+        mostrarMensaje('Elegí un artículo.', 'error');
         return;
     }
     if (cantidad === undefined || cantidad <= 0) {
@@ -249,11 +550,11 @@ function agregarItem(): void {
 
     items.push({ articuloId, cantidad, porcentajeBonificacion: bonificacion });
 
-    // Limpia los inputs para cargar el siguiente renglon
-    inputItemArticulo.value = '';
+    // Limpia los campos para cargar el siguiente renglon
+    selectItemArticulo.value = '';
     inputItemCantidad.value = '';
     inputItemBonificacion.value = '';
-    inputItemArticulo.focus();
+    selectItemArticulo.focus();
 
     dibujarItems();
 }
@@ -263,68 +564,133 @@ function quitarItem(indice: number): void {
     dibujarItems();
 }
 
-/** Redibuja la tabla de renglones a partir del array en memoria. */
+/** Redibuja los renglones y recalcula los totales a partir del array en memoria. */
 function dibujarItems(): void {
     itemsBody.replaceChildren();
+    let total = 0;
 
     if (items.length === 0) {
-        itemsBody.append(filaVacia(5, 'Todavía no hay renglones. Agregá al menos uno para emitir.'));
+        itemsBody.append(filaVacia(6, 'Todavía no hay renglones. Elegí un artículo abajo y tocá «Agregar».'));
     }
 
     items.forEach((item, indice) => {
+        const articulo = articuloDeLista(item.articuloId);
+        const bonificacion = item.porcentajeBonificacion ?? 0;
+        // Mismo calculo que FacturaService.cargarDetalles (el backend lo recalcula al guardar)
+        const subtotal = articulo ? redondear((item.cantidad ?? 0) * articulo.precio * (1 - bonificacion / 100)) : 0;
+        total += subtotal;
+
         const fila = document.createElement('tr');
         fila.append(
-            celda(String(indice + 1)),
-            celda(String(item.articuloId)),
+            celda(articulo ? articulo.nombre : `Artículo ${item.articuloId} (sin precio en esta lista)`),
             celda(String(item.cantidad), 'numero'),
-            celda(String(item.porcentajeBonificacion ?? 0), 'numero'),
+            celda(articulo ? formatoMoneda.format(articulo.precio) : '—', 'numero'),
+            celda(String(bonificacion), 'numero'),
+            celda(articulo ? formatoMoneda.format(subtotal) : '—', 'numero'),
             celda(boton('Quitar', 'peligro', () => quitarItem(indice))),
         );
         itemsBody.append(fila);
     });
 
-    btnEmitir.disabled = items.length === 0;   // sin renglones no se puede emitir
+    // Precios con IVA incluido: neto = total / 1,21
+    const neto = redondear(total / (1 + TASA_IVA));
+    totalNeto.textContent = formatoMoneda.format(neto);
+    totalIva.textContent = formatoMoneda.format(redondear(total - neto));
+    totalComprobante.textContent = formatoMoneda.format(redondear(total));
+
+    // sin renglones no se puede guardar ni emitir
+    btnEmitir.disabled = items.length === 0;
+    btnGuardarBorrador.disabled = items.length === 0;
 }
 
-/** Junta cabecera + renglones en un FacturaRequestDTO y lo manda por POST. */
-async function emitirFactura(): Promise<void> {
+// --- Guardar ---
+
+/** Junta cabecera + renglones del comprobante en un FacturaRequestDTO. */
+function leerFormulario(): FacturaRequestDTO {
+    return {
+        puntoVentaId: numeroOpcional(selectPuntoVenta),
+        // Vacio = Consumidor Final. Viaja como null (y no se omite) para que, al editar,
+        // el backend sepa que hay que quitarle el cliente.
+        clienteId: numeroOpcional(selectCliente) ?? null,
+        condicionIvaId: numeroOpcional(selectCondicionIva),
+        tipoMonedaId: numeroOpcional(selectTipoMoneda),
+        listaPrecioId: numeroOpcional(selectListaPrecio),
+        observaciones: inputObservaciones.value.trim(),
+        detalles: items,
+    };
+}
+
+/**
+ * Guarda lo que hay en el comprobante:
+ *  - alta:    POST con estado BORRADOR o EMITIDA.
+ *  - edicion: PUT sobre la misma factura. Si es un borrador y va con EMITIDA, ademas se emite;
+ *             si ya estaba emitida, se guardan los cambios y conserva su numero.
+ * Si sale bien vuelve al modulo correspondiente; si falla deja todo cargado para corregir.
+ */
+async function guardarFactura(estado: 'BORRADOR' | 'EMITIDA'): Promise<void> {
     if (items.length === 0) {
-        mostrarMensaje('Agregá al menos un renglón antes de emitir.', 'error');
+        mostrarMensaje('Agregá al menos un renglón antes de guardar.', 'error');
         return;
     }
 
-    const factura: FacturaRequestDTO = {
-        puntoVentaId: numeroOpcional(inputPuntoVenta),
-        clienteId: numeroOpcional(inputCliente),        // vacio = Consumidor Final
-        condicionIvaId: numeroOpcional(inputCondicionIva),
-        tipoMonedaId: numeroOpcional(inputTipoMoneda),
-        listaPrecioId: numeroOpcional(inputListaPrecio),
-        observaciones: inputObservaciones.value.trim() || undefined,
-        detalles: items,
-    };
+    const factura: FacturaRequestDTO = { ...leerFormulario(), estado };
+    const editando = facturaEditando;
 
-    btnEmitir.disabled = true;   // evita emitir dos veces con doble clic
+    // evita guardar dos veces con doble clic
+    btnEmitir.disabled = true;
+    btnGuardarBorrador.disabled = true;
     try {
-        const creada = await service.crearFactura(factura);
-        mostrarMensaje(
-            `Factura ${creada.numeroFactura} emitida por ${formatoMoneda.format(creada.importeTotal)}.`, 'exito');
-        items = [];
-        inputObservaciones.value = '';
-        dibujarItems();
-        await cargarFacturas();
+        const guardada = editando !== null
+            ? await service.actualizarFactura(editando.id, factura)
+            : await service.crearFactura(factura);
+
+        const total = formatoMoneda.format(guardada.importeTotal);
+        if (editando?.estado === 'EMITIDA') {
+            mostrarMensaje(`Factura ${guardada.numeroFactura} actualizada (total ${total}).`, 'exito');
+        } else if (estado === 'EMITIDA') {
+            mostrarMensaje(`Factura ${guardada.numeroFactura} emitida por ${total}.`, 'exito');
+        } else {
+            mostrarMensaje(`Borrador ${editando !== null ? 'actualizado' : 'guardado'} (total ${total}).`, 'exito');
+        }
+        // Vuelve al modulo donde quedo el comprobante
+        mostrarVista(guardada.estado);
     } catch (error) {
-        mostrarMensaje(textoDeError(error), 'error');
-    } finally {
+        mostrarMensaje(textoDeError(error), 'error');   // los datos quedan en el comprobante
+        window.scrollTo({ top: 0 });
         btnEmitir.disabled = items.length === 0;
+        btnGuardarBorrador.disabled = items.length === 0;
     }
 }
 
-// Eventos de la seccion de alta
+// =====================================================================
+// PARTE 5: EVENTOS Y ARRANQUE
+// =====================================================================
+
+// Barra lateral
+btnNuevaFactura.addEventListener('click', abrirFormularioNuevo);
+for (const b of botonesMenu) {
+    b.addEventListener('click', () => mostrarVista(b.dataset.vista as Vista));
+}
+
+// Filtros
+formFiltros.addEventListener('submit', (evento) => {
+    evento.preventDefault();   // sin esto el navegador recargaria la pagina al enviar el form
+    void cargarFacturas();
+});
+btnLimpiarFiltros.addEventListener('click', () => {
+    formFiltros.reset();
+    void cargarFacturas();
+});
+
+// Comprobante
+selectListaPrecio.addEventListener('change', llenarArticulos);
+selectCondicionIva.addEventListener('change', actualizarLetra);
 btnAgregarItem.addEventListener('click', agregarItem);
 
-// Enter en los inputs del renglon agrega el renglon (en vez de enviar el formulario)
-for (const input of [inputItemArticulo, inputItemCantidad, inputItemBonificacion]) {
-    input.addEventListener('keydown', (evento) => {
+// Enter en los campos del renglon agrega el renglon (en vez de enviar el formulario)
+const camposRenglon: HTMLElement[] = [selectItemArticulo, inputItemCantidad, inputItemBonificacion];
+for (const campo of camposRenglon) {
+    campo.addEventListener('keydown', (evento: KeyboardEvent) => {
         if (evento.key === 'Enter') {
             evento.preventDefault();
             agregarItem();
@@ -332,13 +698,14 @@ for (const input of [inputItemArticulo, inputItemCantidad, inputItemBonificacion
     });
 }
 
+// "Emitir factura" (o "Guardar cambios" en una emitida) es el submit del formulario
 formFactura.addEventListener('submit', (evento) => {
     evento.preventDefault();
-    void emitirFactura();
+    void guardarFactura('EMITIDA');
 });
+btnGuardarBorrador.addEventListener('click', () => void guardarFactura('BORRADOR'));
+btnCancelar.addEventListener('click', cerrarFormulario);
 
-// =====================================================================
-// ARRANQUE: al abrir la pagina
-// =====================================================================
-dibujarItems();
-void cargarFacturas();
+// Al abrir la pagina: historico visible, comprobante oculto (atributo hidden en el HTML)
+void cargarCatalogos();
+mostrarVista('HISTORICO');

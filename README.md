@@ -86,7 +86,8 @@ npm run build        # compila src/*.ts -> dist/*.js
 npm start            # sirve la página en http://localhost:5500
 ```
 
-Abrir **<http://localhost:5500>**.
+Abrir **<http://localhost:5500>**. La pantalla tiene una barra lateral con **Nueva factura** y los módulos
+**Borradores**, **Emitidas**, **Anuladas** e **Histórico** (todos los comprobantes, con filtros).
 
 Mientras se desarrolla, conviene usar `npm run watch` en otra terminal en lugar de `npm run build`:
 recompila cada vez que se guarda un `.ts`.
@@ -103,12 +104,23 @@ Base: `http://localhost:8080/api/facturas`
 | Método | Ruta | Cuerpo | Respuesta |
 | --- | --- | --- | --- |
 | GET | `/api/facturas?fechaDesde=&fechaHasta=&estado=&montoMinimo=` | — | 200 + lista de `FacturaReporteDTO` (filtros opcionales) |
+| GET | `/api/facturas/{id}` | — | 200 + `FacturaCompletaDTO` (IDs y renglones, para editar) |
+| GET | `/api/catalogos` | — | 200 + `CatalogosDTO` (opciones de los desplegables del formulario) |
 | POST | `/api/facturas` | `FacturaRequestDTO` | 201 + `FacturaReporteDTO` creada |
 | PUT | `/api/facturas/{id}` | `FacturaRequestDTO` (solo lo que cambia) | 200 + `FacturaReporteDTO` actualizada |
 | DELETE | `/api/facturas/{id}` | — | 204 sin cuerpo |
 
-Errores: **404** si un ID no existe, **400** si los datos son inválidos, **409** si se intenta modificar
-una factura ANULADA. El cuerpo del error es `{ "status", "mensaje", "timestamp" }`.
+Estados: **BORRADOR → EMITIDA → ANULADA**.
+
+- `POST` sin `estado` (o con `"EMITIDA"`) emite en el momento. Con `"estado": "BORRADOR"` la guarda sin emitir.
+  El borrador no tiene número: lo toma al emitirse (correlativo por punto de venta).
+- `PUT` sobre un BORRADOR edita cabecera y/o renglones; si además trae `"estado": "EMITIDA"`, lo emite.
+  `"clienteId": null` lo pasa a Consumidor Final (si no viene `clienteId`, el cliente no cambia).
+- Una factura EMITIDA se puede editar (cabecera y renglones) conservando su número, pero no puede cambiar
+  de punto de venta ni volver a borrador. También se puede anular. Una ANULADA no admite cambios.
+
+Errores: **404** si un ID no existe, **400** si los datos son inválidos (o si una anulación trae cambios de
+cabecera o renglones), **409** si se intenta modificar una factura ANULADA, cambiarle el punto de venta a una emitida o pasarla a borrador. El cuerpo del error es `{ "status", "mensaje", "timestamp" }`.
 
 Ejemplo de alta:
 
@@ -123,19 +135,21 @@ Ejemplo de alta:
 }
 ```
 
-Anular: `PUT /api/facturas/{id}` con `{ "estado": "ANULADA", "observaciones": "motivo" }`.
+Guardar como borrador: el mismo cuerpo con `"estado": "BORRADOR"`.
+Emitir un borrador: `PUT /api/facturas/{id}` con `{ "estado": "EMITIDA" }`.
+Anular una emitida: `PUT /api/facturas/{id}` con `{ "estado": "ANULADA", "observaciones": "motivo" }`.
 
 ### Datos de prueba que carga el DataLoader
 
-| Entidad | ID | Dato |
-| --- | --- | --- |
-| Punto de venta | 1 | Punto de Venta Local Central |
-| Cliente | 1 | Cliente consumidor final |
-| Condición IVA | 1 | Consumidor final |
-| Tipo de moneda | 1 | Peso argentino |
-| Lista de precios | 1 | Lista Precios Mayorista |
-| Artículo | 1 | Gaseosa Cola 2.25L — $2500 en la lista 1 |
-| Artículo | 2 | Gaseosa Lima Limón 2L — $2000 en la lista 1 |
+| Entidad | Datos |
+| --- | --- |
+| Puntos de venta | 1 Punto de Venta Local Central, 2 Sucursal Norte, 3 Venta Online, 4 Deposito Mayorista |
+| Clientes | Cliente consumidor final (ID 1), Distribuidora Del Sur S.A., Almacen Don Pedro, Maria Fernandez, Kiosco La Esquina, Supermercado El Trebol S.R.L. |
+| Condiciones IVA | Consumidor final (ID 1), IVA Responsable Inscripto, Responsable Monotributo, IVA Sujeto Exento |
+| Monedas | Peso argentino (ID 1), Dolar estadounidense, Euro |
+| Listas de precios | Mayorista (ID 1), Minorista, Online: las tres con los 8 articulos |
+| Articulos | Gaseosa Cola 2.25L (ID 1, $2500 en la mayorista), Gaseosa Lima Limon 2L (ID 2, $2000), agua, yerba, fideos, aceite, detergente y lavandina |
+| Facturas | La 1001 y cinco de ejemplo creadas con `FacturaService`: emitidas en distintos puntos de venta, una anulada y un borrador |
 
 ---
 

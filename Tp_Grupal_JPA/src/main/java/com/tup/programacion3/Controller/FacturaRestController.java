@@ -1,5 +1,6 @@
 package com.tup.programacion3.Controller;
 
+import com.tup.programacion3.DTOs.FacturaCompletaDTO;
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
 import com.tup.programacion3.DTOs.FacturaRequestDTO;
 import com.tup.programacion3.Service.FacturaService;
@@ -37,14 +38,23 @@ public class FacturaRestController {
         return facturaService.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo);
     }
 
+    // GET /api/facturas/{id} -> factura con IDs y renglones (para cargarla en el formulario). 404 si no existe.
+    @GetMapping("/{id}")
+    public FacturaCompletaDTO obtener(@PathVariable Long id) {
+        return facturaService.obtener(id);
+    }
+
     // POST /api/facturas -> crea una factura. Responde 201 Created con la factura creada.
+    // Sin "estado" se emite en el momento; con "estado": "BORRADOR" queda guardada sin emitir.
     @PostMapping
     public ResponseEntity<FacturaReporteDTO> crear(@RequestBody FacturaRequestDTO request) {
         FacturaReporteDTO creada = facturaService.crear(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(creada);
     }
 
-    // PUT /api/facturas/{id} -> modifica cabecera, items y/o estado (ej. anular). Responde 200 OK.
+    // PUT /api/facturas/{id} -> edita un BORRADOR (y lo emite si viene "estado": "EMITIDA"),
+    // edita una EMITIDA (conserva su numero) o la anula ("estado": "ANULADA").
+    // Responde 200 OK; 409 si la factura esta ANULADA o el cambio no se permite.
     @PutMapping("/{id}")
     public ResponseEntity<FacturaReporteDTO> actualizar(@PathVariable Long id,
                                                         @RequestBody FacturaRequestDTO request) {

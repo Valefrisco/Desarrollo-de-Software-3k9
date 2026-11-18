@@ -1,7 +1,10 @@
 package com.tup.programacion3;
 
+import com.tup.programacion3.DTOs.FacturaDetalleRequestDTO;
+import com.tup.programacion3.DTOs.FacturaRequestDTO;
 import com.tup.programacion3.Entity.*;
 import com.tup.programacion3.Repository.FacturaReporteRepository;
+import com.tup.programacion3.Service.FacturaService;
 import com.tup.programacion3.Service.ReporteService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -26,6 +29,7 @@ public class DataLoader implements CommandLineRunner {
 
     private final FacturaReporteRepository facturaReporteRepository;
     private final ReporteService reporteService;
+    private final FacturaService facturaService;
 
     @Override
     @Transactional
@@ -210,6 +214,80 @@ public class DataLoader implements CommandLineRunner {
 
         // 9. Persistir cabecera FacturaVenta
         em.persist(factura);
+
+        // 10. Mas datos de prueba: opciones para los desplegables del formulario
+        //     (los IDs 1 de cada tabla siguen siendo los de arriba)
+
+        PuntoVenta pvNorte = guardar(new PuntoVenta(2, "Sucursal Norte", "Factura Electronica", "Av. Cabildo 2350"), usuarioAdmin, ahora);
+        PuntoVenta pvOnline = guardar(new PuntoVenta(3, "Venta Online", "Factura Electronica", "Tienda web"), usuarioAdmin, ahora);
+        guardar(new PuntoVenta(4, "Deposito Mayorista", "Factura Electronica", "Ruta 8 Km 42"), usuarioAdmin, ahora);
+
+        CondicionIva ivaInscripto = guardar(new CondicionIva(1, "IVA Responsable Inscripto"), usuarioAdmin, ahora);
+        CondicionIva ivaMonotributo = guardar(new CondicionIva(6, "Responsable Monotributo"), usuarioAdmin, ahora);
+        guardar(new CondicionIva(4, "IVA Sujeto Exento"), usuarioAdmin, ahora);
+
+        guardar(new TipoMoneda("DOL", "Dolar estadounidense", "US$"), usuarioAdmin, ahora);
+        guardar(new TipoMoneda("060", "Euro", "EUR"), usuarioAdmin, ahora);
+
+        Cliente distribuidora = nuevoCliente("30-71234567-8", "Distribuidora Del Sur S.A.", "compras@delsur.com.ar",
+                "Av. Belgrano", "1450", usuarioAdmin, ahora);
+        Cliente almacen = nuevoCliente("20-28456789-3", "Almacen Don Pedro", "donpedro@gmail.com",
+                "Calle 12", "845", usuarioAdmin, ahora);
+        Cliente maria = nuevoCliente("27-33456789-1", "Maria Fernandez", "mfernandez@hotmail.com",
+                "Rivadavia", "3021", usuarioAdmin, ahora);
+        Cliente kiosco = nuevoCliente("20-30111222-5", "Kiosco La Esquina", "laesquina@gmail.com",
+                "Mitre", "77", usuarioAdmin, ahora);
+        Cliente supermercado = nuevoCliente("30-70987654-2", "Supermercado El Trebol S.R.L.", "administracion@eltrebol.com.ar",
+                "Av. Colon", "2200", usuarioAdmin, ahora);
+
+        Rubro rubroAlmacen = guardar(new Rubro("Almacen.", 20), usuarioAdmin, ahora);
+        Rubro rubroLimpieza = guardar(new Rubro("Limpieza.", 30), usuarioAdmin, ahora);
+        Marca marcaSierra = guardar(new Marca("Sierra Pura.", 201), usuarioAdmin, ahora);
+        Marca marcaMolino = guardar(new Marca("Don Molino.", 202), usuarioAdmin, ahora);
+        Marca marcaBrillo = guardar(new Marca("Brillo Hogar.", 203), usuarioAdmin, ahora);
+
+        Articulo agua = nuevoArticulo("ART-003", "Agua mineral 1.5L", rubroBebidas, marcaSierra, usuarioAdmin, ahora);
+        Articulo yerba = nuevoArticulo("ART-004", "Yerba mate 1kg", rubroAlmacen, marcaMolino, usuarioAdmin, ahora);
+        Articulo fideos = nuevoArticulo("ART-005", "Fideos spaghetti 500g", rubroAlmacen, marcaMolino, usuarioAdmin, ahora);
+        Articulo aceite = nuevoArticulo("ART-006", "Aceite de girasol 900ml", rubroAlmacen, marcaMolino, usuarioAdmin, ahora);
+        Articulo detergente = nuevoArticulo("ART-007", "Detergente 750ml", rubroLimpieza, marcaBrillo, usuarioAdmin, ahora);
+        Articulo lavandina = nuevoArticulo("ART-008", "Lavandina 1L", rubroLimpieza, marcaBrillo, usuarioAdmin, ahora);
+
+        // La lista mayorista (ID 1) suma los articulos nuevos; las otras dos listas los tienen todos
+        nuevoPrecio(listaPrecio, agua, 1100, usuarioAdmin, ahora);
+        nuevoPrecio(listaPrecio, yerba, 4800, usuarioAdmin, ahora);
+        nuevoPrecio(listaPrecio, fideos, 1350, usuarioAdmin, ahora);
+        nuevoPrecio(listaPrecio, aceite, 2900, usuarioAdmin, ahora);
+        nuevoPrecio(listaPrecio, detergente, 1900, usuarioAdmin, ahora);
+        nuevoPrecio(listaPrecio, lavandina, 1200, usuarioAdmin, ahora);
+
+        ListaPrecio listaMinorista = guardar(new ListaPrecio("LP-MIN", "Lista Precios Minorista"), usuarioAdmin, ahora);
+        ListaPrecio listaOnline = guardar(new ListaPrecio("LP-ONL", "Lista Precios Online"), usuarioAdmin, ahora);
+        List<Articulo> todos = List.of(articulo1, articulo2, agua, yerba, fideos, aceite, detergente, lavandina);
+        double[] preciosMinorista = {3000, 2400, 1350, 5800, 1600, 3500, 2300, 1450};
+        double[] preciosOnline = {2800, 2250, 1250, 5400, 1500, 3250, 2150, 1350};
+        for (int i = 0; i < todos.size(); i++) {
+            nuevoPrecio(listaMinorista, todos.get(i), preciosMinorista[i], usuarioAdmin, ahora);
+            nuevoPrecio(listaOnline, todos.get(i), preciosOnline[i], usuarioAdmin, ahora);
+        }
+
+        // 11. Facturas de ejemplo para el historico. Se crean con el mismo FacturaService
+        //     que usa la API (mismas validaciones, calculo de importes y numeracion);
+        //     despues se les corre la fecha de emision hacia atras.
+        facturaEjemplo(puntoVenta, distribuidora, ivaInscripto, tipoMoneda, listaPrecio, "EMITIDA", 20, ahora,
+                "Pedido semanal", renglon(articulo1, 24, 5), renglon(agua, 36, 5), renglon(yerba, 10, 0));
+        facturaEjemplo(pvNorte, almacen, ivaMonotributo, tipoMoneda, listaMinorista, "EMITIDA", 12, ahora,
+                null, renglon(fideos, 20, 0), renglon(aceite, 12, 0), renglon(lavandina, 6, 0));
+        Long facturaAnulada = facturaEjemplo(puntoVenta, maria, condicionIva, tipoMoneda, listaMinorista, "EMITIDA", 8, ahora,
+                null, renglon(articulo2, 2, 0), renglon(detergente, 1, 0));
+        FacturaRequestDTO anulacion = new FacturaRequestDTO();
+        anulacion.setEstado("ANULADA");
+        anulacion.setObservaciones("Se cargo mal la cantidad");
+        facturaService.actualizar(facturaAnulada, anulacion);
+        facturaEjemplo(pvOnline, kiosco, ivaMonotributo, tipoMoneda, listaOnline, "EMITIDA", 3, ahora,
+                "Compra web #4512", renglon(articulo1, 6, 0), renglon(articulo2, 6, 0), renglon(agua, 12, 10));
+        facturaEjemplo(pvNorte, supermercado, ivaInscripto, tipoMoneda, listaPrecio, "BORRADOR", 1, ahora,
+                "Esperando confirmacion del cliente", renglon(yerba, 30, 8), renglon(fideos, 48, 8));
         // ---------------- CONSULTAS JPQL ----------------
 
         imprimirSeccion(1, "Lista completa de todas las facturas");
@@ -455,6 +533,69 @@ public class DataLoader implements CommandLineRunner {
             throw new UncheckedIOException(e);
         }
     }
+    // ---------------- HELPERS PARA CARGAR DATOS ----------------
+
+    /** Completa la auditoria (alta y modificacion por el usuario admin) y persiste. */
+    private <T extends AuditoriaApp> T guardar(T entidad, Usuario usuario, LocalDateTime ahora) {
+        entidad.setFechaAlta(ahora);
+        entidad.setFechaaModificar(ahora);
+        entidad.setUsuarioCarga(usuario);
+        entidad.setUsuarioModificacion(usuario);
+        em.persist(entidad);
+        return entidad;
+    }
+
+    private Cliente nuevoCliente(String cuit, String denominacion, String email, String calle, String numero,
+                                 Usuario usuario, LocalDateTime ahora) {
+        Contacto contacto = new Contacto(email, null, null);
+        em.persist(contacto);
+        Domicilio domicilio = new Domicilio(calle, numero);
+        em.persist(domicilio);
+        return guardar(new Cliente(cuit, denominacion, contacto, domicilio), usuario, ahora);
+    }
+
+    private Articulo nuevoArticulo(String codigo, String denominacion, Rubro rubro, Marca marca,
+                                   Usuario usuario, LocalDateTime ahora) {
+        Articulo articulo = new Articulo();
+        articulo.setCodigo(codigo);
+        articulo.setDenominacion(denominacion);
+        articulo.setRubro(rubro);
+        articulo.setMarca(marca);
+        return guardar(articulo, usuario, ahora);
+    }
+
+    private void nuevoPrecio(ListaPrecio lista, Articulo articulo, double precio, Usuario usuario, LocalDateTime ahora) {
+        ListaPrecioArticulo lpa = new ListaPrecioArticulo();
+        lpa.setListaPrecio(lista);
+        lpa.setArticulo(articulo);
+        lpa.setPrecioVenta(precio);
+        guardar(lpa, usuario, ahora);
+    }
+
+    private static FacturaDetalleRequestDTO renglon(Articulo articulo, double cantidad, double bonificacion) {
+        return new FacturaDetalleRequestDTO(articulo.getId(), cantidad, bonificacion);
+    }
+
+    /** Crea una factura con FacturaService (como si viniera de la API) y le corre la fecha de emision. */
+    private Long facturaEjemplo(PuntoVenta pv, Cliente cliente, CondicionIva iva, TipoMoneda moneda, ListaPrecio lista,
+                                String estado, int diasAtras, LocalDateTime ahora, String observaciones,
+                                FacturaDetalleRequestDTO... renglones) {
+        FacturaRequestDTO dto = new FacturaRequestDTO();
+        dto.setPuntoVentaId(pv.getId());
+        dto.setClienteId(cliente.getId());
+        dto.setCondicionIvaId(iva.getId());
+        dto.setTipoMonedaId(moneda.getId());
+        dto.setListaPrecioId(lista.getId());
+        dto.setEstado(estado);
+        dto.setObservaciones(observaciones);
+        dto.setDetalles(List.of(renglones));
+
+        Long id = facturaService.crear(dto).getId();
+        // La entidad esta "managed" (misma transaccion): el cambio se guarda solo
+        em.find(FacturaVenta.class, id).setFechaEmision(ahora.minusDays(diasAtras));
+        return id;
+    }
+
     // FUNCIÓN HELPER
     private static void imprimirSeccion(int numero, String titulo) {
         System.out.println("\n" + "=".repeat(80));
