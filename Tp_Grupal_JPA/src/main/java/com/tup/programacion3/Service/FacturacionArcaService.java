@@ -6,6 +6,7 @@ import com.tup.programacion3.Entity.FacturaVenta;
 import com.tup.programacion3.Exception.RecursoNoEncontradoException;
 import com.tup.programacion3.Repository.FacturaVentaRepository;
 import com.tup.programacion3.arca.ArcaException;
+import com.tup.programacion3.arca.WsaaService;
 import com.tup.programacion3.arca.WsfeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,12 +39,15 @@ public class FacturacionArcaService {
     private final WsfeService wsfeService;
     private final TransactionTemplate transaccion;   // lo crea Spring Boot automaticamente
     private final FacturaService facturaService;
+    private final WsaaService wsaaService;
 
     /**
      * Factura en ARCA todas las facturas EMITIDA, de la mas vieja a la mas nueva.
      * synchronized: evita que dos clics simultaneos manden la misma factura dos veces.
      */
     public synchronized ResultadoFacturacionDTO facturarEmitidas() {
+        // Sin certificado de ARCA en esta PC: un solo error claro (y no uno por cada factura)
+        wsaaService.verificarConfiguracion();
         List<Long> ids = facturaVentaRepository.buscarIdsPorEstado(FacturaService.ESTADO_EMITIDA);
 
         List<ResultadoFacturacionDTO.Detalle> detalle = new ArrayList<>();
@@ -110,6 +114,7 @@ public class FacturacionArcaService {
         if (motivo == null || motivo.isBlank()) {
             throw new IllegalArgumentException("Indica el motivo de la anulacion");
         }
+        wsaaService.verificarConfiguracion();
 
         // 1) Validar y leer lo necesario (transaccion corta, de solo lectura)
         FacturaVenta f = transaccion.execute(estado -> facturaVentaRepository.findById(id)

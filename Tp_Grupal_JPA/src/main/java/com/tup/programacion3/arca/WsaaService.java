@@ -62,6 +62,7 @@ public class WsaaService {
     }
 
     public synchronized Ticket getTicket() {
+        verificarConfiguracion();
         if (ticket != null && ticket.vigente()) return ticket;
 
         Ticket cacheado = leerCache();
@@ -73,6 +74,19 @@ public class WsaaService {
         ticket = pedirTicketNuevo();
         guardarCache(ticket);
         return ticket;
+    }
+
+    /**
+     * En una PC sin certificado de ARCA (sin las variables ARCA_CUIT, ARCA_KEY_PATH y ARCA_CERT_PATH)
+     * la aplicacion arranca igual; recien al usar ARCA se avisa que falta configurarlo.
+     */
+    public void verificarConfiguracion() {
+        if (props.cuit() == 0 || props.keyPath() == null || props.keyPath().isBlank()
+                || props.certPath() == null || props.certPath().isBlank()) {
+            throw new ArcaException("ARCA no esta configurado en esta PC: faltan las variables de entorno "
+                    + "ARCA_CUIT, ARCA_KEY_PATH y ARCA_CERT_PATH (ver las guias de ARCA). "
+                    + "El resto del sistema funciona igual; solo no se puede facturar ni anular en ARCA.");
+        }
     }
 
     // ---------------------------------------------------------------- WSAA

@@ -11,6 +11,28 @@ de facturas con frontend en TypeScript.
 
 ---
 
+## Puesta en marcha rápida (sin ARCA)
+
+Después de clonar o hacer `git pull`, para probar todo el sistema **sin** facturar en ARCA:
+
+1. Levantar PostgreSQL (`cd Tp_Grupal_JPA` y `docker compose up -d`, o ver el paso 1).
+2. Abrir `Tp_Grupal_JPA` en IntelliJ, recargar Gradle (ícono del elefante) y ejecutar `Main`.
+   **No hace falta configurar ninguna variable de entorno**: sin las variables `ARCA_*` el backend arranca igual.
+3. En otra terminal: `cd Tp_Grupal_Frontend`, `npm install` (la primera vez), `npm run build` y `npm start`.
+4. Abrir <http://localhost:5500>.
+
+Funciona todo menos lo que habla con ARCA: crear, editar, emitir y anular facturas, filtros, paginación,
+exploradores de clientes y artículos, listas de precios por renglón, etc. Los botones "Facturar emitidas en ARCA"
+y "Anular en ARCA" responden "ARCA no está configurado en esta PC". Como no se puede facturar, la vista
+**Facturadas** queda vacía y no hay facturas para imprimir en PDF.
+
+> Después de **cada** `git pull`, volver a correr `npm run build` (la carpeta `dist/` no se sube al repo)
+> y reiniciar el backend.
+
+Para usar ARCA ver la sección [ARCA (opcional)](#arca-opcional).
+
+---
+
 ## Requisitos
 
 | Herramienta | Versión | Para qué |
@@ -69,9 +91,10 @@ Está listo cuando la consola muestra `Tomcat started on port 8080` y `Started M
 Al arrancar, el `DataLoader` carga datos de prueba, imprime las 20 consultas JPQL y genera
 `reporte-facturas.pdf` y `.txt`.
 
-> Como `ddl-auto=create-drop`, **la base se recrea en cada arranque**: siempre empieza con una sola factura (la 1001).
+> Como `ddl-auto=create-drop`, **la base se recrea en cada arranque**: siempre empieza con las 20 facturas
+> de prueba del `DataLoader` (emitidas, borradores y anuladas).
 
-Prueba rápida: abrir <http://localhost:8080/api/facturas> en el navegador. Tiene que devolver un JSON con la factura 1001.
+Prueba rápida: abrir <http://localhost:8080/api/facturas> en el navegador. Tiene que devolver un JSON con las facturas.
 
 ---
 
@@ -87,7 +110,7 @@ npm start            # sirve la página en http://localhost:5500
 ```
 
 Abrir **<http://localhost:5500>**. La pantalla tiene una barra lateral con **Nueva factura** y los módulos
-**Borradores**, **Emitidas**, **Anuladas** e **Histórico** (todos los comprobantes, con filtros).
+**Borradores**, **Emitidas**, **Facturadas**, **Anuladas** e **Histórico** (todos los comprobantes, con filtros).
 
 Mientras se desarrolla, conviene usar `npm run watch` en otra terminal en lugar de `npm run build`:
 recompila cada vez que se guarda un `.ts`.
@@ -110,7 +133,10 @@ Base: `http://localhost:8080/api/facturas`
 | PUT | `/api/facturas/{id}` | `FacturaRequestDTO` (solo lo que cambia) | 200 + `FacturaReporteDTO` actualizada |
 | DELETE | `/api/facturas/{id}` | — | 204 sin cuerpo |
 
-Estados: **BORRADOR → EMITIDA → ANULADA**.
+Estados: **BORRADOR → EMITIDA → FACTURADA** (con CAE de ARCA), y **EMITIDA / FACTURADA → ANULADA**.
+Otros endpoints: `GET /api/facturas/pagina` (listado paginado), `POST /api/facturas/facturar-emitidas`,
+`POST /api/facturas/{id}/anular-en-arca`, `GET /api/facturas/{id}/impresion`, `GET /api/catalogos/clientes`
+y `GET /api/catalogos/articulos`. El detalle de cada cambio está en [`CAMBIOS.md`](CAMBIOS.md).
 
 - `POST` sin `estado` (o con `"EMITIDA"`) emite en el momento. Con `"estado": "BORRADOR"` la guarda sin emitir.
   El borrador no tiene número: lo toma al emitirse (correlativo por punto de venta).
@@ -149,7 +175,7 @@ Anular una emitida: `PUT /api/facturas/{id}` con `{ "estado": "ANULADA", "observ
 | Monedas | Peso argentino (ID 1), Dolar estadounidense, Euro |
 | Listas de precios | Mayorista (ID 1), Minorista, Online: las tres con los 8 articulos |
 | Articulos | Gaseosa Cola 2.25L (ID 1, $2500 en la mayorista), Gaseosa Lima Limon 2L (ID 2, $2000), agua, yerba, fideos, aceite, detergente y lavandina |
-| Facturas | La 1001 y cinco de ejemplo creadas con `FacturaService`: emitidas en distintos puntos de venta, una anulada y un borrador |
+| Facturas | 20: la 1001 y 19 de ejemplo creadas con `FacturaService` (12 emitidas, 5 borradores y 3 anuladas), para probar la paginación |
 
 ---
 
@@ -163,3 +189,16 @@ Anular una emitida: `PUT /api/facturas/{id}` con `{ "estado": "ANULADA", "observ
 | La página muestra "No se pudo conectar con el servidor" | El backend no está levantado en `localhost:8080`. |
 | En la consola del navegador (F12): `blocked by CORS policy` | El backend que está corriendo no tiene `@CrossOrigin` en `FacturaRestController`. Reiniciarlo con el código actualizado. |
 | `npm start` dice `Could not read package.json` | No estás parado en la carpeta `Tp_Grupal_Frontend`. |
+| Después de un pull, un botón nuevo "no hace nada" o falta algo en pantalla | El navegador usa el `dist/` viejo: correr `npm run build` y recargar con **Ctrl+F5**. |
+| "ARCA no está configurado en esta PC" | Normal si no hiciste la configuración de ARCA: todo lo demás funciona. Ver [ARCA (opcional)](#arca-opcional). |
+
+---
+
+## ARCA (opcional)
+
+La facturación electrónica usa el entorno de **homologación** (pruebas) de ARCA y necesita un certificado
+digital propio en cada PC. Los pasos están en las guías de ARCA del equipo (Guía 1: crear el certificado;
+Guía 2: usar uno que te pasaron; Guía 3: usar el tuyo). En resumen: los archivos van en `C:\arca`
+(fuera del repo) y en la configuración de ejecución de IntelliJ se definen las variables
+`ARCA_CUIT`, `ARCA_KEY_PATH`, `ARCA_CERT_PATH` y, si corresponde, `ARCA_PTO_VTA`.
+**Nunca subir al repo** los `.key`, `.crt` ni `ta-cache.properties`.

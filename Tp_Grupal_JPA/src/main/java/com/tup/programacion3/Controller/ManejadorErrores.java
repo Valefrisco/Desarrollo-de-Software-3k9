@@ -2,6 +2,7 @@ package com.tup.programacion3.Controller;
 
 import com.tup.programacion3.DTOs.ErrorDTO;
 import com.tup.programacion3.Exception.RecursoNoEncontradoException;
+import com.tup.programacion3.arca.ArcaException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -32,6 +33,12 @@ public class ManejadorErrores {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorDTO> conflicto(IllegalStateException ex) {
         return armarRespuesta(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    // 503: ARCA no esta disponible (PC sin certificado configurado, sin conexion, error del web service)
+    @ExceptionHandler(ArcaException.class)
+    public ResponseEntity<ErrorDTO> arcaNoDisponible(ArcaException ex) {
+        return armarRespuesta(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
     private ResponseEntity<ErrorDTO> armarRespuesta(HttpStatus status, String mensaje) {

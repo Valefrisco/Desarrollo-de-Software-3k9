@@ -288,3 +288,25 @@ Ejemplo: Borradores → página 2 → Editar → ✕ → sigue en Borradores, p�
 |---|---|
 | `index.html` (front) | Botón `#btn-cerrar-formulario` (ícono ✕ en SVG) en el encabezado del comprobante; estilo `.boton.icono.cerrar-formulario` (36 × 36 px). |
 | `src/app.ts` (front) | `mostrarVista(vista, conservarPagina = false)`: con `true` no vuelve a la página 1. `cerrarFormulario()` la usa así; el botón nuevo y "Cancelar" llaman a `cerrarFormulario()`. |
+
+---
+
+## 7. El proyecto arranca sin ARCA
+
+**Qué hace:** quien no configuró el certificado de ARCA puede levantar y probar todo el sistema.
+- Antes, sin las variables `ARCA_*` el backend **no arrancaba** (`Could not resolve placeholder 'ARCA_CUIT'`).
+  Ahora tienen valores por defecto vacíos y la app arranca igual.
+- Al usar algo de ARCA sin configurarlo ("Facturar emitidas en ARCA", "Anular en ARCA") se responde
+  **503** con un solo mensaje claro: "ARCA no esta configurado en esta PC: faltan las variables de
+  entorno ARCA_CUIT, ARCA_KEY_PATH y ARCA_CERT_PATH...". No se marca ninguna factura como rechazada.
+- `README.md`: sección nueva "Puesta en marcha rápida (sin ARCA)", sección "ARCA (opcional)",
+  problemas frecuentes nuevos y datos desactualizados corregidos (20 facturas de prueba, estado FACTURADA,
+  vista Facturadas, endpoints nuevos).
+
+| Archivo | Cambio |
+|---|---|
+| `src/main/resources/application.properties` (back) | `arca.cuit=${ARCA_CUIT:0}`, `arca.key-path=${ARCA_KEY_PATH:}`, `arca.cert-path=${ARCA_CERT_PATH:}`. |
+| `arca/WsaaService.java` | `verificarConfiguracion()` (público): lanza `ArcaException` si falta el CUIT o las rutas; se llama al pedir el ticket. |
+| `Service/FacturacionArcaService.java` | `facturarEmitidas()` y `anularEnArca()` verifican la configuración antes de empezar. |
+| `Controller/ManejadorErrores.java` | `ArcaException` → **503** con el mensaje en el cuerpo. |
+| `README.md` (raíz) | Ver arriba. |
