@@ -1,5 +1,7 @@
 import {
+    ArticuloExplorerDTO,
     CatalogosDTO,
+    ClienteExplorerDTO,
     EstadoFactura,
     FacturaDetalleRequestDTO,
     FacturaFiltrosDTO,
@@ -70,6 +72,9 @@ function elemento<T extends HTMLElement>(id: string): T {
 
 // --- Referencias a los elementos del HTML (una sola vez, al cargar) ---
 const mensaje = elemento<HTMLDivElement>('mensaje');
+const dialogoError = elemento<HTMLDialogElement>('dialogo-error');
+const textoDialogoError = elemento<HTMLDivElement>('dialogo-error-texto');
+const btnDialogoError = elemento<HTMLButtonElement>('btn-dialogo-error');
 const botonesMenu = Array.from(document.querySelectorAll<HTMLButtonElement>('.menu button[data-vista]'));
 const btnNuevaFactura = elemento<HTMLButtonElement>('btn-nueva-factura');
 const btnFacturarEmitidas = elemento<HTMLButtonElement>('btn-facturar-emitidas');
@@ -79,11 +84,14 @@ const vistaListado = elemento<HTMLElement>('vista-listado');
 const tituloListado = elemento<HTMLHeadingElement>('titulo-listado');
 const descripcionListado = elemento<HTMLParagraphElement>('descripcion-listado');
 const formFiltros = elemento<HTMLFormElement>('form-filtros');
+const avisoFiltros = elemento<HTMLParagraphElement>('aviso-filtros');
 const filtroFechaDesde = elemento<HTMLInputElement>('filtro-fecha-desde');
 const filtroFechaHasta = elemento<HTMLInputElement>('filtro-fecha-hasta');
 const campoFiltroEstado = elemento<HTMLLabelElement>('campo-filtro-estado');
 const filtroEstado = elemento<HTMLSelectElement>('filtro-estado');
 const filtroMontoMinimo = elemento<HTMLInputElement>('filtro-monto-minimo');
+const filtroNumero = elemento<HTMLInputElement>('filtro-numero');
+const filtroCliente = elemento<HTMLInputElement>('filtro-cliente');
 const btnLimpiarFiltros = elemento<HTMLButtonElement>('btn-limpiar-filtros');
 const facturasBody = elemento<HTMLTableSectionElement>('facturas-body');
 const facturasPie = elemento<HTMLTableSectionElement>('facturas-pie');
@@ -112,8 +120,30 @@ const selectTipoMoneda = elemento<HTMLSelectElement>('tipo-moneda-id');
 const selectListaPrecio = elemento<HTMLSelectElement>('lista-precio-id');
 const inputObservaciones = elemento<HTMLInputElement>('observaciones');
 const selectItemArticulo = elemento<HTMLSelectElement>('item-articulo-id');
+// Visores y botones de los exploradores (los select de arriba quedan ocultos y guardan el ID)
+// Los visores son botones con forma de campo: muestran lo elegido y al hacer clic abren el explorador
+const btnClienteVisor = elemento<HTMLButtonElement>('cliente-visor');
+const btnQuitarCliente = elemento<HTMLButtonElement>('btn-quitar-cliente');
+const btnArticuloVisor = elemento<HTMLButtonElement>('item-articulo-visor');
+// Explorador de clientes
+const dialogClientes = elemento<HTMLDialogElement>('explorador-clientes');
+const formFiltrosClientes = elemento<HTMLFormElement>('filtros-exp-clientes');
+const inputExpClienteTexto = elemento<HTMLInputElement>('exp-cliente-texto');
+const bodyExpClientes = elemento<HTMLTableSectionElement>('exp-clientes-body');
+const cantidadExpClientes = elemento<HTMLSpanElement>('exp-clientes-cantidad');
+const btnExpConsumidorFinal = elemento<HTMLButtonElement>('btn-exp-consumidor-final');
+// Explorador de articulos
+const dialogArticulos = elemento<HTMLDialogElement>('explorador-articulos');
+const formFiltrosArticulos = elemento<HTMLFormElement>('filtros-exp-articulos');
+const inputExpArticuloTexto = elemento<HTMLInputElement>('exp-articulo-texto');
+const selectExpArticuloRubro = elemento<HTMLSelectElement>('exp-articulo-rubro');
+const selectExpArticuloMarca = elemento<HTMLSelectElement>('exp-articulo-marca');
+const bodyExpArticulos = elemento<HTMLTableSectionElement>('exp-articulos-body');
+const cantidadExpArticulos = elemento<HTMLSpanElement>('exp-articulos-cantidad');
+const textoExpArticulosLista = elemento<HTMLParagraphElement>('exp-articulos-lista');
 const inputItemCantidad = elemento<HTMLInputElement>('item-cantidad');
 const celdaItemPrecio = elemento<HTMLTableCellElement>('item-precio');
+const celdaItemLista = elemento<HTMLTableCellElement>('item-lista');
 const inputItemBonificacion = elemento<HTMLInputElement>('item-bonificacion');
 const btnAgregarItem = elemento<HTMLButtonElement>('btn-agregar-item');
 const itemsBody = elemento<HTMLTableSectionElement>('items-body');
@@ -123,6 +153,9 @@ const totalComprobante = elemento<HTMLElement>('total-comprobante');
 const btnCancelar = elemento<HTMLButtonElement>('btn-cancelar');
 const btnGuardarBorrador = elemento<HTMLButtonElement>('btn-guardar-borrador');
 const btnEmitir = elemento<HTMLButtonElement>('btn-emitir');
+const btnImprimir = elemento<HTMLButtonElement>('btn-imprimir');
+const btnCerrarFormulario = elemento<HTMLButtonElement>('btn-cerrar-formulario');
+const seccionImpresion = elemento<HTMLElement>('impresion');
 // Fila de carga de renglones (se oculta cuando la factura es de solo lectura)
 const filaAgregarItem = btnAgregarItem.closest('tr') as HTMLTableRowElement;
 
@@ -133,6 +166,12 @@ let soloLectura = false;
 let temporizadorMensaje: number | undefined;
 
 function mostrarMensaje(texto: string, tipo: 'exito' | 'error'): void {
+    // Con el comprobante abierto, los errores van a una ventana emergente (el cartel queda arriba
+    // de todo y no se ve si el usuario esta mas abajo en el formulario)
+    if (tipo === 'error' && !seccionFactura.hidden) {
+        mostrarErrores([{ mensaje: texto }]);
+        return;
+    }
     mensaje.textContent = texto;
     mensaje.className = tipo;              // la clase CSS lo pinta verde o rojo
     window.clearTimeout(temporizadorMensaje);
@@ -140,6 +179,133 @@ function mostrarMensaje(texto: string, tipo: 'exito' | 'error'): void {
     if (tipo === 'exito') {
         temporizadorMensaje = window.setTimeout(() => (mensaje.className = ''), 6000);
     }
+    // Sube hasta el cartel para que se vea aunque la pagina este scrolleada
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// --- Errores del comprobante ---
+
+/** Un problema del comprobante y, si corresponde, el campo donde esta. */
+interface Problema {
+    mensaje: string;
+    campo?: HTMLElement;      // se pinta en rojo
+    enfocar?: HTMLElement;    // recibe el foco al cerrar la ventana (por defecto, el mismo campo)
+    cambio?: HTMLElement;     // cuyo "input"/"change" saca el rojo (por defecto, el mismo campo)
+}
+
+/** Campo al que se lleva el foco cuando el usuario cierra la ventana de error. */
+let campoAEnfocar: HTMLElement | null = null;
+
+/** Saca el rojo de todos los campos marcados. */
+function limpiarResaltados(): void {
+    for (const campo of Array.from(document.querySelectorAll('.invalido'))) {
+        campo.classList.remove('invalido');
+    }
+}
+
+/** Pinta un campo en rojo hasta que el usuario lo modifica. */
+function resaltar(problema: Problema): void {
+    if (!problema.campo) return;
+    const campo = problema.campo;
+    campo.classList.add('invalido');
+    const fuente = problema.cambio ?? campo;
+    const quitar = () => campo.classList.remove('invalido');
+    fuente.addEventListener('input', quitar, { once: true });
+    fuente.addEventListener('change', quitar, { once: true });
+}
+
+/**
+ * Muestra una ventana emergente con uno o varios errores del comprobante, pinta en rojo los
+ * campos involucrados y, al cerrarla, baja hasta el primero y le pone el foco.
+ */
+function mostrarErrores(problemas: Problema[]): void {
+    limpiarResaltados();
+    problemas.forEach(resaltar);
+
+    if (problemas.length === 1) {
+        const parrafo = document.createElement('p');
+        parrafo.textContent = problemas[0].mensaje;
+        textoDialogoError.replaceChildren(parrafo);
+    } else {
+        const lista = document.createElement('ul');
+        for (const problema of problemas) {
+            const li = document.createElement('li');
+            li.textContent = problema.mensaje;
+            lista.append(li);
+        }
+        textoDialogoError.replaceChildren(lista);
+    }
+
+    const primero = problemas.find((p) => p.campo);
+    campoAEnfocar = primero ? (primero.enfocar ?? primero.campo ?? null) : null;
+    if (!dialogoError.open) dialogoError.showModal();
+}
+
+/** Al cerrar la ventana de error (boton, Escape): lleva al usuario al primer campo con problema. */
+function alCerrarDialogoError(): void {
+    if (!campoAEnfocar) return;
+    campoAEnfocar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campoAEnfocar.focus({ preventScroll: true });
+    campoAEnfocar = null;
+}
+
+/**
+ * Relaciona un error del backend con el campo del comprobante (por las palabras del mensaje),
+ * para pintarlo en rojo. Si no reconoce el campo, el error se muestra igual, sin resaltar nada.
+ */
+function problemaDelBackend(texto: string): Problema {
+    const t = texto.toLowerCase();
+    const reglas: [string[], HTMLElement, HTMLElement?][] = [
+        [['punto de venta', 'puntoventa'], selectPuntoVenta],
+        [['lista de precio', 'listaprecio'], selectListaPrecio],
+        [['condicion iva', 'condición iva', 'condicioniva'], selectCondicionIva],
+        [['moneda'], selectTipoMoneda],
+        [['cliente'], btnClienteVisor],
+        [['cantidad'], inputItemCantidad],
+        [['bonificacion', 'bonificación'], inputItemBonificacion],
+        [['articulo', 'artículo', 'item', 'renglon', 'renglón'], btnArticuloVisor],
+    ];
+    for (const [palabras, campo, enfocar] of reglas) {
+        if (palabras.some((p) => t.includes(p))) {
+            return { mensaje: texto, campo, enfocar, cambio: campo === btnClienteVisor ? selectCliente
+                : campo === btnArticuloVisor ? selectItemArticulo : undefined };
+        }
+    }
+    return { mensaje: texto };
+}
+
+/**
+ * Revisa el comprobante antes de mandarlo al backend y junta TODOS los problemas
+ * (asi el usuario los corrige de una vez). El backend vuelve a validar igual.
+ */
+function validarComprobante(): Problema[] {
+    const problemas: Problema[] = [];
+    if (!selectPuntoVenta.value) {
+        problemas.push({ mensaje: 'Elegí el punto de venta.', campo: selectPuntoVenta });
+    }
+    if (!selectTipoMoneda.value) {
+        problemas.push({ mensaje: 'Elegí la moneda.', campo: selectTipoMoneda });
+    }
+    if (!selectListaPrecio.value) {
+        problemas.push({ mensaje: 'Elegí la lista de precios.', campo: selectListaPrecio });
+    }
+    if (!selectCondicionIva.value) {
+        problemas.push({ mensaje: 'Elegí la condición IVA del cliente.', campo: selectCondicionIva });
+    }
+    // Un articulo elegido (o una cantidad escrita) que no se agrego con "Agregar" se perderia
+    const renglonSinAgregar = selectItemArticulo.value !== '' || inputItemCantidad.value !== '' || inputItemCantidad.validity.badInput;
+    if (renglonSinAgregar) {
+        problemas.push({
+            mensaje: 'Hay un renglón cargado sin agregar: tocá «Agregar» (o vacialo) antes de guardar.',
+            campo: btnArticuloVisor, enfocar: btnAgregarItem, cambio: selectItemArticulo,
+        });
+    } else if (items.length === 0) {
+        problemas.push({
+            mensaje: 'Agregá al menos un renglón: hacé clic en «Elegí un artículo», cargá la cantidad y tocá «Agregar».',
+            campo: btnArticuloVisor, cambio: selectItemArticulo,
+        });
+    }
+    return problemas;
 }
 
 /** Convierte cualquier error en un texto para mostrar. */
@@ -173,13 +339,15 @@ function fechaConHora(iso: string): HTMLElement {
     return contenedor;
 }
 
-/** Nombre del cliente y, debajo, su condicion IVA. */
+/** Nombre del cliente y, debajo, su CUIT (si tiene) y su condicion IVA. */
 function clienteConIva(factura: FacturaReporteDTO): HTMLElement {
     const contenedor = document.createElement('span');
     const nombre = document.createElement('strong');
     nombre.textContent = factura.clienteDenominacion;
     const iva = document.createElement('small');
-    iva.textContent = factura.condicionIva;
+    iva.textContent = factura.clienteCuit
+        ? `CUIT ${factura.clienteCuit} · ${factura.condicionIva}`
+        : factura.condicionIva;
     contenedor.append(nombre, iva);
     return contenedor;
 }
@@ -237,13 +405,31 @@ function boton(texto: string, clase: string, alHacerClic: () => void): HTMLButto
     return b;
 }
 
+/** Boton cuadrado solo con icono (SVG); el texto va en el tooltip y en aria-label. */
+function botonIcono(svg: string, titulo: string, alHacerClic: () => void): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'boton chico icono';
+    b.title = titulo;
+    b.setAttribute('aria-label', titulo);
+    b.innerHTML = svg;   // SVG fijo del codigo (no viene de datos del usuario)
+    b.addEventListener('click', alHacerClic);
+    return b;
+}
+
+/** Icono de impresora (trazo, hereda el color del boton). */
+const ICONO_IMPRIMIR = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" '
+    + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>';
+
 // =====================================================================
 // PARTE 2: NAVEGACION ENTRE MODULOS
 // =====================================================================
 
 /** Muestra un modulo del listado (borradores, emitidas, anuladas o historico). */
-function mostrarVista(vista: Vista): void {
+function mostrarVista(vista: Vista, conservarPagina = false): void {
     vistaActual = vista;
+    avisoFiltros.hidden = true;   // el aviso de "sin filtros" es de la busqueda anterior
     seccionFactura.hidden = true;
     vistaListado.hidden = false;
     limpiarFormulario();
@@ -257,7 +443,8 @@ function mostrarVista(vista: Vista): void {
     btnFacturarEmitidas.hidden = vista !== 'EMITIDA' && vista !== 'HISTORICO';
 
     marcarMenu(vista);
-    paginaActual = 0;   // cada vista arranca en su primera pagina
+    // Cada vista arranca en su primera pagina, salvo al volver del comprobante (se queda donde estaba)
+    if (!conservarPagina) paginaActual = 0;
     void cargarFacturas();
 }
 
@@ -285,6 +472,8 @@ function leerFiltros(): FacturaFiltrosDTO {
         fechaHasta: filtroFechaHasta.value || undefined,
         estado,
         montoMinimo: numeroOpcional(filtroMontoMinimo),
+        numero: numeroOpcional(filtroNumero),
+        cliente: filtroCliente.value.trim() || undefined,
     };
 }
 
@@ -373,8 +562,11 @@ function dibujarFacturas(pagina: PaginaDTO<FacturaReporteDTO>): void {
                 boton('Anular', 'aviso', () => void anular(factura)),
             );
         } else if (factura.estado === 'FACTURADA') {
+            const btnImprimirFila: HTMLButtonElement = botonIcono(ICONO_IMPRIMIR, 'Imprimir / Guardar PDF',
+                () => void imprimirFactura(factura.id, btnImprimirFila));
             acciones.append(
                 boton('Ver', '', () => void abrirFormularioEdicion(factura)),
+                btnImprimirFila,   // imprime directo desde el listado, sin abrir "Ver"
                 boton('Anular en ARCA', 'aviso', () => void anularEnArca(factura)),
             );
         } else if (factura.estado === 'ANULADA' && factura.cae !== null) {
@@ -546,6 +738,7 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
 
         selectPuntoVenta.value = String(completa.puntoVentaId);
         selectCliente.value = completa.clienteId !== null ? String(completa.clienteId) : '';
+        actualizarVisorCliente();
         selectCondicionIva.value = String(completa.condicionIvaId);
         selectTipoMoneda.value = String(completa.tipoMonedaId);
         selectListaPrecio.value = completa.listaPrecioId !== null ? String(completa.listaPrecioId) : '';
@@ -565,6 +758,7 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
             numeroComprobante.textContent = `N° ${completa.numeroFactura}`;
             numeroComprobante.classList.remove('pendiente');
             activarSoloLectura();
+            btnImprimir.hidden = false;   // la factura con CAE se puede imprimir / guardar en PDF
         } else if (completa.estado === 'ANULADA') {
             // Anulada (en ARCA con nota de credito, o una emitida anulada): solo se muestra
             tituloFormulario.textContent = `Factura ${completa.numeroFactura} (anulada)`;
@@ -600,7 +794,7 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
 function activarSoloLectura(): void {
     soloLectura = true;
     for (const campo of Array.from(formFactura.elements)) {
-        if (campo !== btnCancelar) (campo as HTMLInputElement).disabled = true;
+        if (campo !== btnCancelar && campo !== btnImprimir) (campo as HTMLInputElement).disabled = true;
     }
     filaAgregarItem.hidden = true;
     btnGuardarBorrador.hidden = true;
@@ -617,13 +811,15 @@ function mostrarFormulario(): void {
 }
 
 /** Cierra el comprobante, descarta lo cargado y vuelve al modulo de listado. */
+/** Cierra el comprobante sin guardar y vuelve al ultimo listado (misma vista, filtros y pagina). */
 function cerrarFormulario(): void {
-    mostrarVista(vistaActual);
+    mostrarVista(vistaActual, true);
 }
 
 function limpiarFormulario(): void {
     formFactura.reset();   // vuelve cada campo a su valor inicial (en los desplegables, la primera opcion)
     facturaEditando = null;
+    limpiarResaltados();   // un comprobante nuevo arranca sin campos en rojo
     items = [];
     // Deshace el modo solo lectura (factura facturada)
     soloLectura = false;
@@ -632,6 +828,7 @@ function limpiarFormulario(): void {
     }
     filaAgregarItem.hidden = false;
     btnEmitir.hidden = false;
+    btnImprimir.hidden = true;
     btnCancelar.textContent = 'Cancelar';
     // Botones y campos como en el alta (la edicion de una emitida los cambia)
     selectPuntoVenta.disabled = false;
@@ -641,7 +838,7 @@ function limpiarFormulario(): void {
     numeroComprobante.textContent = 'El número se asigna al emitir';
     numeroComprobante.classList.add('pendiente');
     llenarArticulos();
-    actualizarLetra();
+    actualizarLetra();    actualizarVisorCliente();
 }
 
 // --- Desplegables ---
@@ -666,8 +863,11 @@ async function cargarCatalogos(): Promise<void> {
         llenarSelect(selectCondicionIva, catalogos.condicionesIva);
         llenarSelect(selectTipoMoneda, catalogos.monedas);
         llenarSelect(selectListaPrecio, catalogos.listasPrecio);
+        llenarSelect(selectExpArticuloRubro, catalogos.rubros, 'Todos');
+        llenarSelect(selectExpArticuloMarca, catalogos.marcas, 'Todas');
         llenarArticulos();
         actualizarLetra();
+        actualizarVisorCliente();
     } catch (error) {
         mostrarMensaje('No se pudieron cargar las opciones del formulario. ' + textoDeError(error), 'error');
     }
@@ -683,13 +883,16 @@ function llenarArticulos(): void {
         articulos.length > 0 ? 'Elegí un artículo' : 'No hay artículos en esta lista',
     );
     actualizarPrecioItem();
-    dibujarItems();   // nombres, precios y totales dependen de la lista
+    actualizarListaItem();
+    // Los renglones ya agregados conservan su propia lista: cambiar la lista por defecto no los modifica
+    dibujarItems();
 }
 
 /** Muestra el precio unitario del articulo elegido en el renglon de carga (sale de la lista de precios). */
 function actualizarPrecioItem(): void {
     const articulo = articuloDeLista(numeroOpcional(selectItemArticulo));
     celdaItemPrecio.textContent = articulo ? formatoMoneda.format(articulo.precio) : '—';
+    ponerTextoVisor(btnArticuloVisor, articulo?.nombre, 'Elegí un artículo');   // lo que se ve del articulo elegido
 }
 
 /**
@@ -703,10 +906,268 @@ function actualizarLetra(): void {
     codigoComprobante.textContent = esA ? 'Cód. 001' : 'Cód. 006';
 }
 
-/** Articulo de la lista de precios elegida (nombre y precio) o undefined si no esta. */
+/** Articulo de la lista de precios por defecto (la del encabezado) o undefined si no esta. */
 function articuloDeLista(articuloId: number | undefined) {
-    const listaId = Number(selectListaPrecio.value);
+    return precioEnLista(articuloId, Number(selectListaPrecio.value));
+}
+
+/** Articulo (nombre y precio) en una lista de precios dada, o undefined si no tiene precio ahi. */
+function precioEnLista(articuloId: number | undefined, listaId: number) {
     return catalogos?.articulos.find((a) => a.articuloId === articuloId && a.listaPrecioId === listaId);
+}
+
+/**
+ * Mini selector de la lista de precios de un renglon ya agregado. Solo ofrece las listas donde
+ * ese articulo tiene precio. Al cambiarla, se recalculan el precio y el subtotal de ESE renglon.
+ * En solo lectura muestra el nombre de la lista como texto.
+ */
+function selectorListaRenglon(item: FacturaDetalleRequestDTO, listaId: number): HTMLElement | string {
+    const nombreLista = (id: number) => catalogos?.listasPrecio.find((l) => l.id === id)?.nombre ?? `Lista ${id}`;
+    if (soloLectura) return nombreLista(listaId);
+
+    const listasConPrecio = (catalogos?.articulos ?? [])
+        .filter((a) => a.articuloId === item.articuloId)
+        .map((a) => a.listaPrecioId);
+    const select = document.createElement('select');
+    select.className = 'lista-renglon';
+    select.setAttribute('aria-label', 'Lista de precios del renglón');
+    for (const id of listasConPrecio) {
+        select.append(new Option(nombreLista(id), String(id)));
+    }
+    if (!listasConPrecio.includes(listaId)) {
+        select.append(new Option(`${nombreLista(listaId)} (sin precio)`, String(listaId)));
+    }
+    select.value = String(listaId);
+    select.addEventListener('change', () => {
+        item.listaPrecioId = Number(select.value);
+        dibujarItems();   // precio, subtotal y totales con la nueva lista
+    });
+    return select;
+}
+
+/** En la fila de carga: con que lista se va a agregar el proximo renglon. */
+function actualizarListaItem(): void {
+    celdaItemLista.textContent = selectListaPrecio.selectedOptions[0]?.textContent ?? '—';
+}
+
+// --- Comprobante impreso (Imprimir / Guardar PDF) ---
+
+/** "0001-00000012": punto de venta (4 digitos) y numero (8 digitos), como en los comprobantes de ARCA. */
+function numeroArcaFormateado(puntoVenta: number, numero: number): string {
+    return `${String(puntoVenta).padStart(4, '0')}-${String(numero).padStart(8, '0')}`;
+}
+
+/** Crea un elemento con texto (atajo para armar la hoja de impresion sin innerHTML). */
+function crear<K extends keyof HTMLElementTagNameMap>(tag: K, texto?: string, clase?: string): HTMLElementTagNameMap[K] {
+    const el = document.createElement(tag);
+    if (texto !== undefined) el.textContent = texto;
+    if (clase) el.className = clase;
+    return el;
+}
+
+/** Parrafo "Etiqueta: valor" con la etiqueta en negrita (sinCortar: el valor no se parte en dos lineas). */
+function dato(etiqueta: string, valor: string, sinCortar = false): HTMLParagraphElement {
+    const p = crear('p');
+    p.append(crear('strong', `${etiqueta}: `), sinCortar ? crear('span', valor, 'sin-cortar') : valor);
+    return p;
+}
+
+/**
+ * Trae los datos del comprobante (GET /{id}/impresion), arma la hoja A4 en #impresion y abre el
+ * dialogo de impresion del navegador, donde se elige la impresora o "Guardar como PDF".
+ * El nombre sugerido del PDF sale del titulo de la pagina (Factura-C-0001-00000012).
+ */
+async function imprimirFactura(id: number, botonUsado: HTMLButtonElement): Promise<void> {
+    botonUsado.disabled = true;   // evita pedidos repetidos mientras llega la respuesta
+    try {
+        const c = await service.obtenerImpresion(id);
+        const numero = numeroArcaFormateado(c.puntoVentaArca, c.numeroArca);
+        const fecha = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('es-AR');
+
+        // Cabecera: emisor | letra | comprobante
+        const emisor = crear('div');
+        emisor.append(crear('h1', c.emisorRazonSocial), dato('Domicilio comercial', c.emisorDomicilio ?? '—'),
+            dato('Condición frente al IVA', c.emisorCondicionIva), dato('Punto de venta', c.puntoVentaDescripcion));
+        const letra = crear('div', undefined, 'imp-letra');
+        letra.append(crear('b', c.letra), crear('small', `COD. ${c.codigoComprobante}`));
+        const comprobante = crear('div');
+        comprobante.append(crear('h2', c.tipoComprobante), dato('Punto de venta y número', numero, true),
+            dato('Fecha de emisión', fecha(c.fechaFacturacion)), dato('CUIT', String(c.emisorCuit)),
+            dato('N° interno', c.numeroInterno !== null ? String(c.numeroInterno) : '—'));
+        const cabecera = crear('div', undefined, 'imp-cabecera');
+        cabecera.append(emisor, letra, comprobante);
+
+        // Receptor
+        const receptor = crear('div', undefined, 'imp-caja');
+        receptor.append(dato('Cliente', c.clienteDenominacion), dato('CUIT/CUIL', c.clienteCuit ?? '—'),
+            dato('Condición frente al IVA', c.condicionIva), dato('Domicilio', c.clienteDomicilio ?? '—'),
+            dato('Moneda', c.moneda), dato('Observaciones', c.observaciones || '—'));
+
+        // Renglones (con los importes guardados en la factura)
+        const tabla = crear('table');
+        const encabezado = crear('tr');
+        for (const [titulo, num] of [['Código', false], ['Descripción', false], ['Cantidad', true],
+            ['Precio unit.', true], ['% Bonif.', true], ['Subtotal', true]] as [string, boolean][]) {
+            encabezado.append(crear('th', titulo, num ? 'num' : undefined));
+        }
+        const thead = crear('thead');
+        thead.append(encabezado);
+        const tbody = crear('tbody');
+        for (const r of c.renglones) {
+            const fila = crear('tr');
+            fila.append(crear('td', r.codigo), crear('td', r.descripcion), crear('td', String(r.cantidad), 'num'),
+                crear('td', formatoMoneda.format(r.precioUnitario), 'num'), crear('td', String(r.porcentajeBonificacion), 'num'),
+                crear('td', formatoMoneda.format(r.subtotal), 'num'));
+            tbody.append(fila);
+        }
+        tabla.append(thead, tbody);
+
+        // Totales (Factura C: sin IVA discriminado)
+        const totales = crear('div', undefined, 'imp-totales');
+        const subtotal = crear('p');
+        subtotal.append(crear('span', 'Subtotal'), crear('span', formatoMoneda.format(c.importeTotal)));
+        const total = crear('p', undefined, 'total');
+        total.append(crear('span', 'Importe total'), crear('span', formatoMoneda.format(c.importeTotal)));
+        totales.append(subtotal, total);
+
+        // Autorizacion de ARCA: CAE y su vencimiento
+        const cae = crear('div', undefined, 'imp-cae');
+        const datosCae = crear('div');
+        datosCae.append(dato('CAE N°', c.cae), dato('Fecha de vencimiento del CAE', c.caeVencimiento ? fecha(c.caeVencimiento) : '—'));
+        cae.append(datosCae, crear('p',
+            'Comprobante autorizado por ARCA en el entorno de homologación (pruebas): sin validez fiscal.', 'aviso'));
+
+        seccionImpresion.replaceChildren(cabecera, receptor, tabla, totales, cae);
+
+        // El titulo de la pagina es el nombre que el navegador sugiere para el PDF
+        const tituloAnterior = document.title;
+        document.title = `Factura-${c.letra}-${numero}`;
+        window.addEventListener('afterprint', () => (document.title = tituloAnterior), { once: true });
+        window.print();
+    } catch (error) {
+        mostrarMensaje(textoDeError(error), 'error');
+    } finally {
+        botonUsado.disabled = false;
+    }
+}
+
+// --- Exploradores de clientes y articulos (ventanas emergentes) ---
+
+/** Muestra en el visor el cliente elegido en el select oculto (vacio = Consumidor Final). */
+function actualizarVisorCliente(): void {
+    ponerTextoVisor(btnClienteVisor,
+        selectCliente.value ? (selectCliente.selectedOptions[0]?.textContent ?? '') : undefined, 'Consumidor Final');
+}
+
+/** Texto del campo-boton de un explorador; sin valor muestra el texto por defecto en gris (clase "vacio"). */
+function ponerTextoVisor(visor: HTMLButtonElement, texto: string | undefined, porDefecto: string): void {
+    const span = visor.querySelector('.texto-visor');
+    if (span) span.textContent = texto || porDefecto;
+    visor.classList.toggle('vacio', !texto);
+}
+
+/** Elige un valor en un select oculto y avisa a quien escucha su "change" (precio, visor, etc.). */
+function elegirEnSelect(select: HTMLSelectElement, valor: string): void {
+    select.value = valor;
+    select.dispatchEvent(new Event('change'));
+}
+
+/** Espera a que el usuario deje de escribir antes de buscar (evita un GET por tecla). */
+function conDemora(accion: () => void, ms = 250): () => void {
+    let temporizador: number | undefined;
+    return () => {
+        window.clearTimeout(temporizador);
+        temporizador = window.setTimeout(accion, ms);
+    };
+}
+
+/** Fila de un explorador: al hacer clic (o Enter con el foco en ella) elige el elemento. */
+function filaExplorador(celdas: (string | null)[], alElegir: () => void, numericas: number[] = []): HTMLTableRowElement {
+    const fila = document.createElement('tr');
+    fila.tabIndex = 0;   // se puede recorrer con Tab y elegir con Enter
+    celdas.forEach((texto, i) => fila.append(celda(texto ?? '—', numericas.includes(i) ? 'numero' : '')));
+    fila.addEventListener('click', alElegir);
+    fila.addEventListener('keydown', (evento: KeyboardEvent) => {
+        if (evento.key === 'Enter') {
+            evento.preventDefault();
+            alElegir();
+        }
+    });
+    return fila;
+}
+
+function abrirExploradorClientes(): void {
+    inputExpClienteTexto.value = '';
+    dialogClientes.showModal();
+    inputExpClienteTexto.focus();
+    void buscarEnExploradorClientes();
+}
+
+/** GET /api/catalogos/clientes con el texto del filtro y dibuja el listado. */
+async function buscarEnExploradorClientes(): Promise<void> {
+    try {
+        const clientes: ClienteExplorerDTO[] = await service.buscarClientes(inputExpClienteTexto.value);
+        bodyExpClientes.replaceChildren();
+        if (clientes.length === 0) {
+            bodyExpClientes.append(filaVacia(4, 'No hay clientes que coincidan con la búsqueda.'));
+        }
+        for (const c of clientes) {
+            bodyExpClientes.append(filaExplorador([c.denominacion, c.cuitCuil, c.email, c.domicilio], () => {
+                elegirEnSelect(selectCliente, String(c.id));
+                dialogClientes.close();
+            }));
+        }
+        cantidadExpClientes.textContent = `${clientes.length} ${clientes.length === 1 ? 'cliente' : 'clientes'}`;
+    } catch (error) {
+        bodyExpClientes.replaceChildren(filaVacia(4, textoDeError(error)));
+        cantidadExpClientes.textContent = '';
+    }
+}
+
+function abrirExploradorArticulos(): void {
+    if (!selectListaPrecio.value) {
+        mostrarMensaje('Elegí una lista de precios antes de buscar artículos.', 'error');
+        return;
+    }
+    inputExpArticuloTexto.value = '';
+    selectExpArticuloRubro.value = '';
+    selectExpArticuloMarca.value = '';
+    textoExpArticulosLista.textContent =
+        `Precios de la ${selectListaPrecio.selectedOptions[0]?.textContent ?? 'lista elegida'}. Hacé clic en un artículo para elegirlo.`;
+    dialogArticulos.showModal();
+    inputExpArticuloTexto.focus();
+    void buscarEnExploradorArticulos();
+}
+
+/** GET /api/catalogos/articulos con la lista de precios del comprobante y los filtros del explorador. */
+async function buscarEnExploradorArticulos(): Promise<void> {
+    try {
+        const articulos: ArticuloExplorerDTO[] = await service.buscarArticulos({
+            listaPrecioId: Number(selectListaPrecio.value),
+            texto: inputExpArticuloTexto.value,
+            rubroId: numeroOpcional(selectExpArticuloRubro),
+            marcaId: numeroOpcional(selectExpArticuloMarca),
+        });
+        bodyExpArticulos.replaceChildren();
+        if (articulos.length === 0) {
+            bodyExpArticulos.append(filaVacia(5, 'No hay artículos que coincidan con los filtros.'));
+        }
+        for (const a of articulos) {
+            bodyExpArticulos.append(filaExplorador(
+                [a.codigo, a.denominacion, a.rubro, a.marca, formatoMoneda.format(a.precio)],
+                () => {
+                    elegirEnSelect(selectItemArticulo, String(a.articuloId));
+                    dialogArticulos.close();
+                    inputItemCantidad.focus();   // lo siguiente es cargar la cantidad
+                },
+                [4],
+            ));
+        }
+        cantidadExpArticulos.textContent = `${articulos.length} ${articulos.length === 1 ? 'artículo' : 'artículos'}`;
+    } catch (error) {
+        bodyExpArticulos.replaceChildren(filaVacia(5, textoDeError(error)));
+        cantidadExpArticulos.textContent = '';
+    }
 }
 
 // --- Renglones ---
@@ -719,20 +1180,31 @@ function agregarItem(): void {
 
     // Validaciones para ayudar al usuario. El backend vuelve a validar todo,
     // porque al servidor se le puede pegar sin pasar por esta pantalla (ej. Postman).
+    // Se juntan todos los problemas del renglon para mostrarlos juntos
+    const problemas: Problema[] = [];
     if (articuloId === undefined || articuloId <= 0) {
-        mostrarMensaje('Elegí un artículo.', 'error');
-        return;
+        problemas.push({ mensaje: 'Elegí un artículo: hacé clic en el campo Artículo para buscarlo.',
+            campo: btnArticuloVisor, cambio: selectItemArticulo });
     }
-    if (cantidad === undefined || !Number.isInteger(cantidad) || cantidad < 1) {
-        mostrarMensaje('La cantidad debe ser un número entero mayor a 0.', 'error');
-        return;
+    // badInput: el navegador recibio algo que no es un numero (ej. "2,5,1" o "abc")
+    if (inputItemCantidad.validity.badInput) {
+        problemas.push({ mensaje: 'La cantidad tiene caracteres que no son un número.', campo: inputItemCantidad });
+    } else if (cantidad === undefined || !Number.isInteger(cantidad) || cantidad < 1) {
+        problemas.push({ mensaje: 'La cantidad debe ser un número entero mayor a 0.', campo: inputItemCantidad });
     }
-    if (bonificacion !== undefined && (bonificacion < 0 || bonificacion > 100)) {
-        mostrarMensaje('La bonificación debe estar entre 0 y 100.', 'error');
+    if (inputItemBonificacion.validity.badInput) {
+        problemas.push({ mensaje: 'La bonificación tiene caracteres que no son un número.', campo: inputItemBonificacion });
+    } else if (bonificacion !== undefined && (bonificacion < 0 || bonificacion > 100)) {
+        problemas.push({ mensaje: 'La bonificación debe estar entre 0 y 100.', campo: inputItemBonificacion });
+    }
+    if (problemas.length > 0 || articuloId === undefined || cantidad === undefined) {
+        mostrarErrores(problemas);
         return;
     }
 
-    items.push({ articuloId, cantidad, porcentajeBonificacion: bonificacion });
+    // El renglon se queda con la lista de precios elegida AHORA: si despues se cambia la lista
+    // por defecto del encabezado, este renglon no cambia (se puede cambiar con su mini selector)
+    items.push({ articuloId, cantidad, porcentajeBonificacion: bonificacion, listaPrecioId: Number(selectListaPrecio.value) });
 
     // Limpia los campos para cargar el siguiente renglon
     selectItemArticulo.value = '';
@@ -755,11 +1227,13 @@ function dibujarItems(): void {
     let total = 0;
 
     if (items.length === 0) {
-        itemsBody.append(filaVacia(6, 'Todavía no hay renglones. Elegí un artículo abajo y tocá «Agregar».'));
+        itemsBody.append(filaVacia(7, 'Todavía no hay renglones. Elegí un artículo abajo y tocá «Agregar».'));
     }
 
     items.forEach((item, indice) => {
-        const articulo = articuloDeLista(item.articuloId);
+        // Cada renglon usa SU lista de precios (los viejos sin lista usan la del encabezado)
+        const listaId = item.listaPrecioId ?? Number(selectListaPrecio.value);
+        const articulo = precioEnLista(item.articuloId, listaId);
         const bonificacion = item.porcentajeBonificacion ?? 0;
         // Mismo calculo que FacturaService.cargarDetalles (el backend lo recalcula al guardar)
         const subtotal = articulo ? redondear((item.cantidad ?? 0) * articulo.precio * (1 - bonificacion / 100)) : 0;
@@ -768,6 +1242,7 @@ function dibujarItems(): void {
         const fila = document.createElement('tr');
         fila.append(
             celda(articulo ? articulo.nombre : `Artículo ${item.articuloId} (sin precio en esta lista)`),
+            celda(selectorListaRenglon(item, listaId)),
             celda(String(item.cantidad), 'numero'),
             celda(articulo ? formatoMoneda.format(articulo.precio) : '—', 'numero'),
             celda(String(bonificacion), 'numero'),
@@ -783,9 +1258,10 @@ function dibujarItems(): void {
     totalIva.textContent = formatoMoneda.format(redondear(total - neto));
     totalComprobante.textContent = formatoMoneda.format(redondear(total));
 
-    // sin renglones no se puede guardar ni emitir (y en solo lectura, nunca)
-    btnEmitir.disabled = soloLectura || items.length === 0;
-    btnGuardarBorrador.disabled = soloLectura || items.length === 0;
+    // Los botones quedan activos aunque falten datos: al tocarlos, validarComprobante()
+    // explica que falta (un boton deshabilitado no le dice nada al usuario). En solo lectura, nunca.
+    btnEmitir.disabled = soloLectura;
+    btnGuardarBorrador.disabled = soloLectura;
 }
 
 // --- Guardar ---
@@ -813,8 +1289,9 @@ function leerFormulario(): FacturaRequestDTO {
  * Si sale bien vuelve al modulo correspondiente; si falla deja todo cargado para corregir.
  */
 async function guardarFactura(estado: 'BORRADOR' | 'EMITIDA'): Promise<void> {
-    if (items.length === 0) {
-        mostrarMensaje('Agregá al menos un renglón antes de guardar.', 'error');
+    const problemas = validarComprobante();
+    if (problemas.length > 0) {
+        mostrarErrores(problemas);
         return;
     }
 
@@ -840,10 +1317,11 @@ async function guardarFactura(estado: 'BORRADOR' | 'EMITIDA'): Promise<void> {
         // Vuelve al modulo donde quedo el comprobante
         mostrarVista(guardada.estado);
     } catch (error) {
-        mostrarMensaje(textoDeError(error), 'error');   // los datos quedan en el comprobante
-        window.scrollTo({ top: 0 });
-        btnEmitir.disabled = items.length === 0;
-        btnGuardarBorrador.disabled = items.length === 0;
+        // Error del backend: ventana emergente y, si se reconoce, el campo en rojo.
+        // Los datos quedan en el comprobante para corregirlos.
+        mostrarErrores([problemaDelBackend(textoDeError(error))]);
+        btnEmitir.disabled = false;
+        btnGuardarBorrador.disabled = false;
     }
 }
 
@@ -853,6 +1331,41 @@ async function guardarFactura(estado: 'BORRADOR' | 'EMITIDA'): Promise<void> {
 
 // Barra lateral
 btnNuevaFactura.addEventListener('click', abrirFormularioNuevo);
+
+// Ventana de error del comprobante
+btnDialogoError.addEventListener('click', () => dialogoError.close());
+dialogoError.addEventListener('close', alCerrarDialogoError);
+
+// Exploradores: se abren haciendo clic en el campo-boton (Cliente / Articulo)
+btnClienteVisor.addEventListener('click', abrirExploradorClientes);
+btnQuitarCliente.addEventListener('click', () => elegirEnSelect(selectCliente, ''));
+selectCliente.addEventListener('change', actualizarVisorCliente);
+btnExpConsumidorFinal.addEventListener('click', () => {
+    elegirEnSelect(selectCliente, '');
+    dialogClientes.close();
+});
+btnArticuloVisor.addEventListener('click', abrirExploradorArticulos);
+// Filtros internos: buscan mientras se escribe (con una pequena demora) o al cambiar un desplegable
+inputExpClienteTexto.addEventListener('input', conDemora(() => void buscarEnExploradorClientes()));
+inputExpArticuloTexto.addEventListener('input', conDemora(() => void buscarEnExploradorArticulos()));
+selectExpArticuloRubro.addEventListener('change', () => void buscarEnExploradorArticulos());
+selectExpArticuloMarca.addEventListener('change', () => void buscarEnExploradorArticulos());
+// Enter en un filtro no debe enviar nada: busca
+for (const form of [formFiltrosClientes, formFiltrosArticulos]) {
+    form.addEventListener('submit', (evento) => evento.preventDefault());
+}
+// Boton "Cerrar" de cada explorador (Escape tambien los cierra, lo hace el navegador)
+for (const dialogo of [dialogClientes, dialogArticulos]) {
+    dialogo.querySelector('[data-cerrar]')?.addEventListener('click', () => dialogo.close());
+    // Clic afuera de la ventana (sobre el fondo oscuro) tambien la cierra. Con showModal(), un clic
+    // en el fondo llega al propio <dialog>: se cierra si el punto cae fuera de su rectangulo.
+    dialogo.addEventListener('click', (evento: MouseEvent) => {
+        const caja = dialogo.getBoundingClientRect();
+        const afuera = evento.clientX < caja.left || evento.clientX > caja.right
+            || evento.clientY < caja.top || evento.clientY > caja.bottom;
+        if (afuera) dialogo.close();
+    });
+}
 btnFacturarEmitidas.addEventListener('click', () => void facturarEmitidas());
 for (const b of botonesMenu) {
     b.addEventListener('click', () => mostrarVista(b.dataset.vista as Vista));
@@ -861,10 +1374,23 @@ for (const b of botonesMenu) {
 // Filtros
 formFiltros.addEventListener('submit', (evento) => {
     evento.preventDefault();   // sin esto el navegador recargaria la pagina al enviar el form
+    // Buscar sin ningun filtro no cambia nada: se avisa con un texto chico debajo de los filtros.
+    // (El estado solo cuenta en el historico: en las otras vistas lo pone la vista misma.)
+    const f = leerFiltros();
+    const hayFiltros = f.fechaDesde !== undefined || f.fechaHasta !== undefined
+        || f.montoMinimo !== undefined || f.numero !== undefined || f.cliente !== undefined
+        || (vistaActual === 'HISTORICO' && f.estado !== undefined)
+        || filtroNumero.validity.badInput || filtroMontoMinimo.validity.badInput;
+    avisoFiltros.hidden = hayFiltros;
+    if (!hayFiltros) return;
     paginaActual = 0;          // con otros filtros, se vuelve a la primera pagina
     void cargarFacturas();
 });
+// El aviso se va apenas el usuario empieza a completar un filtro
+formFiltros.addEventListener('input', () => (avisoFiltros.hidden = true));
+formFiltros.addEventListener('change', () => (avisoFiltros.hidden = true));
 btnLimpiarFiltros.addEventListener('click', () => {
+    avisoFiltros.hidden = true;
     formFiltros.reset();
     paginaActual = 0;
     void cargarFacturas();
@@ -901,7 +1427,7 @@ inputItemCantidad.addEventListener('change', () => {
 });
 
 // Enter en los campos del renglon agrega el renglon (en vez de enviar el formulario)
-const camposRenglon: HTMLElement[] = [selectItemArticulo, inputItemCantidad, inputItemBonificacion];
+const camposRenglon: HTMLElement[] = [inputItemCantidad, inputItemBonificacion];
 for (const campo of camposRenglon) {
     campo.addEventListener('keydown', (evento: KeyboardEvent) => {
         if (evento.key === 'Enter') {
@@ -918,6 +1444,10 @@ formFactura.addEventListener('submit', (evento) => {
 });
 btnGuardarBorrador.addEventListener('click', () => void guardarFactura('BORRADOR'));
 btnCancelar.addEventListener('click', cerrarFormulario);
+btnCerrarFormulario.addEventListener('click', cerrarFormulario);
+btnImprimir.addEventListener('click', () => {
+    if (facturaEditando) void imprimirFactura(facturaEditando.id, btnImprimir);
+});
 
 // Al abrir la pagina: historico visible, comprobante oculto (atributo hidden en el HTML)
 void cargarCatalogos();

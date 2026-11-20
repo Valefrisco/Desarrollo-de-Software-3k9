@@ -1,5 +1,9 @@
 import {
+    ArticuloExplorerDTO,
     CatalogosDTO,
+    ClienteExplorerDTO,
+    ComprobanteImpresionDTO,
+    FiltrosArticuloExplorer,
     ErrorDTO,
     EstadoFactura,
     FacturaCompletaDTO,
@@ -51,6 +55,8 @@ export class FacturaService {
         if (filtros.fechaHasta) params.append('fechaHasta', filtros.fechaHasta);
         if (filtros.estado) params.append('estado', filtros.estado);
         if (filtros.montoMinimo !== undefined) params.append('montoMinimo', String(filtros.montoMinimo));
+        if (filtros.numero !== undefined) params.append('numero', String(filtros.numero));
+        if (filtros.cliente) params.append('cliente', filtros.cliente);
         return params;
     }
 
@@ -60,10 +66,34 @@ export class FacturaService {
         return this.procesarRespuesta<CatalogosDTO>(respuesta);
     }
 
+    // GET /api/catalogos/clientes?texto=  (explorador de clientes)
+    async buscarClientes(texto: string): Promise<ClienteExplorerDTO[]> {
+        const params = new URLSearchParams();
+        if (texto.trim()) params.append('texto', texto.trim());
+        const respuesta = await fetch(`${CATALOGOS_URL}/clientes?${params.toString()}`);
+        return this.procesarRespuesta<ClienteExplorerDTO[]>(respuesta);
+    }
+
+    // GET /api/catalogos/articulos?listaPrecioId=&texto=&rubroId=&marcaId=  (explorador de articulos)
+    async buscarArticulos(filtros: FiltrosArticuloExplorer): Promise<ArticuloExplorerDTO[]> {
+        const params = new URLSearchParams({ listaPrecioId: String(filtros.listaPrecioId) });
+        if (filtros.texto?.trim()) params.append('texto', filtros.texto.trim());
+        if (filtros.rubroId !== undefined) params.append('rubroId', String(filtros.rubroId));
+        if (filtros.marcaId !== undefined) params.append('marcaId', String(filtros.marcaId));
+        const respuesta = await fetch(`${CATALOGOS_URL}/articulos?${params.toString()}`);
+        return this.procesarRespuesta<ArticuloExplorerDTO[]>(respuesta);
+    }
+
     // GET /api/facturas/{id}  (factura con IDs y renglones, para cargarla en el formulario)
     async obtenerFactura(id: number): Promise<FacturaCompletaDTO> {
         const respuesta = await fetch(`${API_URL}/${id}`);
         return this.procesarRespuesta<FacturaCompletaDTO>(respuesta);
+    }
+
+    // GET /api/facturas/{id}/impresion  (datos del comprobante impreso de una FACTURADA)
+    async obtenerImpresion(id: number): Promise<ComprobanteImpresionDTO> {
+        const respuesta = await fetch(`${API_URL}/${id}/impresion`);
+        return this.procesarRespuesta<ComprobanteImpresionDTO>(respuesta);
     }
 
     // POST /api/facturas  (responde 201 con la factura creada)

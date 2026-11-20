@@ -27,6 +27,7 @@ export interface FacturaReporteDTO {
     numeroArca: number | null;     // solo FACTURADA: numero del comprobante en ARCA
     numeroNotaCredito: number | null;  // solo ANULADA en ARCA: numero de la Nota de Credito C
     caeNotaCredito: string | null;     // solo ANULADA en ARCA: CAE de la Nota de Credito C
+    clienteCuit: string | null;        // CUIT/CUIL del cliente (null = Consumidor Final)
 }
 
 /** Espejo de FacturaCompletaDTO.java (respuesta de GET /api/facturas/{id}, para editar). */
@@ -72,6 +73,39 @@ export interface PaginaDTO<T> {
     importeTotal: number;    // suma de TODOS los resultados filtrados (sin anuladas, salvo que se filtre por ANULADA)
 }
 
+/** Espejo de ComprobanteImpresionDTO.java (GET /api/facturas/{id}/impresion). */
+export interface ComprobanteImpresionDTO {
+    emisorRazonSocial: string;
+    emisorCuit: number;
+    emisorDomicilio: string | null;
+    emisorCondicionIva: string;
+    tipoComprobante: string;           // "FACTURA"
+    letra: string;                     // "C"
+    codigoComprobante: string;         // "011"
+    puntoVentaArca: number;
+    numeroArca: number;
+    fechaFacturacion: string;          // "AAAA-MM-DDTHH:mm:ss"
+    numeroInterno: number | null;
+    puntoVentaDescripcion: string;
+    clienteDenominacion: string;
+    clienteCuit: string | null;
+    clienteDomicilio: string | null;
+    condicionIva: string;
+    moneda: string;
+    renglones: {
+        codigo: string;
+        descripcion: string;
+        cantidad: number;
+        precioUnitario: number;
+        porcentajeBonificacion: number;
+        subtotal: number;
+    }[];
+    importeTotal: number;
+    observaciones: string | null;
+    cae: string;
+    caeVencimiento: string | null;     // "AAAA-MM-DD"
+}
+
 /** Espejo de ResultadoFacturacionDTO.java (respuesta de POST /api/facturas/facturar-emitidas). */
 export interface ResultadoFacturacionDTO {
     facturadas: number;
@@ -104,6 +138,7 @@ export interface FacturaDetalleRequestDTO {
     articuloId?: number;
     cantidad?: number;
     porcentajeBonificacion?: number;
+    listaPrecioId?: number;        // lista de precios de este renglon (si falta, la de la factura)
 }
 
 /** Espejo de FacturaRequestDTO.java (cabecera + renglones). */
@@ -128,6 +163,8 @@ export interface FacturaFiltrosDTO {
     fechaHasta?: string;           // formato "AAAA-MM-DD"
     estado?: EstadoFactura;
     montoMinimo?: number;
+    numero?: number;               // numero de factura exacto
+    cliente?: string;              // parte de la razon social o del CUIT (sin distinguir mayusculas)
 }
 
 // ---------------------------------------------------------------------
@@ -156,4 +193,34 @@ export interface CatalogosDTO {
     monedas: OpcionDTO[];
     listasPrecio: OpcionDTO[];
     articulos: ArticuloPrecioDTO[];
+    rubros: OpcionDTO[];           // filtros del explorador de articulos
+    marcas: OpcionDTO[];
+}
+
+/** Espejo de ClienteExplorerDTO.java (GET /api/catalogos/clientes). */
+export interface ClienteExplorerDTO {
+    id: number;
+    denominacion: string;
+    cuitCuil: string;
+    email: string | null;
+    telefono: string | null;
+    domicilio: string | null;
+}
+
+/** Espejo de ArticuloExplorerDTO.java (GET /api/catalogos/articulos). */
+export interface ArticuloExplorerDTO {
+    articuloId: number;
+    codigo: string;
+    denominacion: string;
+    rubro: string | null;
+    marca: string | null;
+    precio: number;                // en la lista de precios pedida
+}
+
+/** Filtros del explorador de articulos. */
+export interface FiltrosArticuloExplorer {
+    listaPrecioId: number;
+    texto?: string;
+    rubroId?: number;
+    marcaId?: number;
 }

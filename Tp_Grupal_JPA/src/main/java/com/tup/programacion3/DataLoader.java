@@ -535,7 +535,7 @@ public class DataLoader implements CommandLineRunner {
         // CAMBIO: ahora usa el repositorio inyectado (campo facturaReporteRepository) y el método con filtros
         imprimirSeccion(21, "Reporte con DTO (SELECT new)");
         List<FacturaReporteDTO> reporteDto =
-                facturaReporteRepository.buscarFacturasFiltradas(null, null, null, null);
+                facturaReporteRepository.buscarFacturasFiltradas(null, null, null, null, null, null);
         reporteDto.forEach(d -> System.out.println(
                 "-> Factura N° " + d.getNumeroFactura() +
                         " | " + d.getFechaEmision() +
@@ -546,7 +546,7 @@ public class DataLoader implements CommandLineRunner {
                         " | Items: " + d.getCantidadItems()));
 
         List<FacturaReporteDTO> reporte =
-                facturaReporteRepository.buscarFacturasFiltradas(null, null, null, null);
+                facturaReporteRepository.buscarFacturasFiltradas(null, null, null, null, null, null);
 
         reporte.forEach(d -> System.out.println(
                 "-> Factura N° " + d.getNumeroFactura() +

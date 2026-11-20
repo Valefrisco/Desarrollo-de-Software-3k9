@@ -65,21 +65,22 @@ public class FacturaService {
 
     @Transactional(readOnly = true)
     public List<FacturaReporteDTO> buscarFacturasFiltradas(
-            LocalDateTime desde, LocalDateTime hasta, String estado, Double montoMinimo) {
-        return facturaReporteRepository.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo);
+            LocalDateTime desde, LocalDateTime hasta, String estado, Double montoMinimo, Long numero, String cliente) {
+        return facturaReporteRepository.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo, numero, cliente);
     }
 
     /** Una pagina del listado (pagina empieza en 0; tamano entre 1 y 100). */
     @Transactional(readOnly = true)
     public PaginaDTO<FacturaReporteDTO> buscarPaginaFiltrada(
-            LocalDateTime desde, LocalDateTime hasta, String estado, Double montoMinimo, int pagina, int tamano) {
+            LocalDateTime desde, LocalDateTime hasta, String estado, Double montoMinimo,
+            Long numero, String cliente, int pagina, int tamano) {
         if (pagina < 0) {
             throw new IllegalArgumentException("La pagina no puede ser negativa");
         }
         if (tamano < 1 || tamano > 100) {
             throw new IllegalArgumentException("El tamano de pagina debe estar entre 1 y 100");
         }
-        return facturaReporteRepository.buscarPaginaFiltrada(desde, hasta, estado, montoMinimo, pagina, tamano);
+        return facturaReporteRepository.buscarPaginaFiltrada(desde, hasta, estado, montoMinimo, numero, cliente, pagina, tamano);
     }
 
     /** Factura completa (IDs y renglones) para cargarla en el formulario de edicion. */
@@ -91,11 +92,12 @@ public class FacturaService {
                 .map(d -> new FacturaDetalleRequestDTO(
                         d.getListaPrecioArticulo().getArticulo().getId(),
                         d.getCantidad(),
-                        d.getPorcentajeBonificacion()))
+                        d.getPorcentajeBonificacion(),
+                        d.getListaPrecioArticulo().getListaPrecio().getId()))   // lista de cada renglon
                 .toList();
 
-        // La factura no guarda la lista de precios: se deduce de sus renglones,
-        // porque todos se cargan con la misma lista (ver cargarDetalles).
+        // La factura no guarda una lista de precios propia: cada renglon tiene la suya
+        // (ver cargarDetalles). Como lista "por defecto" del formulario se usa la del primer renglon.
         Long listaPrecioId = f.getDetalles().isEmpty() ? null
                 : f.getDetalles().getFirst().getListaPrecioArticulo().getListaPrecio().getId();
 
@@ -318,8 +320,10 @@ public class FacturaService {
     /**
      * Arma un FacturaVentaDetalle por cada item del request, con el precio sacado
      * de la lista de precios, y calcula subtotal, neto, IVA y el total de la factura.
+     * Cada item usa su propia listaPrecioId; si no la trae, la de la factura (listaPrecioPorDefecto).
+     * Asi una misma factura puede tener articulos de distintas listas de precios.
      */
-    private void cargarDetalles(FacturaVenta factura, Long listaPrecioId, List<FacturaDetalleRequestDTO> items) {
+    private void cargarDetalles(FacturaVenta factura, Long listaPrecioPorDefecto, List<FacturaDetalleRequestDTO> items) {
         double total = 0;
 
         for (FacturaDetalleRequestDTO item : items) {
@@ -334,6 +338,7 @@ public class FacturaService {
                 throw new IllegalArgumentException("La bonificacion debe estar entre 0 y 100");
             }
 
+            Long listaPrecioId = item.getListaPrecioId() != null ? item.getListaPrecioId() : listaPrecioPorDefecto;
             ListaPrecioArticulo precioLista = listaPrecioArticuloRepository
                     .findByListaPrecioIdAndArticuloId(listaPrecioId, item.getArticuloId())
                     .orElseThrow(() -> new RecursoNoEncontradoException(
@@ -419,7 +424,8 @@ public class FacturaService {
                 f.getCae(),
                 f.getNumeroArca(),
                 f.getNumeroNotaCredito(),
-                f.getCaeNotaCredito());
+                f.getCaeNotaCredito(),
+                f.getCliente() != null ? f.getCliente().getCuitCuil() : null);
     }
 
     /**

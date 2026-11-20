@@ -14,12 +14,12 @@ import java.util.List;
 import java.util.Map;
 
 @Repository
-public class FacturaReporteRepository {
+    public class FacturaReporteRepository {
 
     private static final String SELECT_REPORTE =
             "SELECT new com.tup.programacion3.DTOs.FacturaReporteDTO(" +
                     " f.id, f.numero, f.fechaEmision, COALESCE(c.denominacion, 'Consumidor Final'), " +
-                    " ci.denominacion, pv.descripcion, f.importeTotal, f.estado, COUNT(d), f.cae, f.numeroArca, f.numeroNotaCredito, f.caeNotaCredito) " +
+                    " ci.denominacion, pv.descripcion, f.importeTotal, f.estado, COUNT(d), f.cae, f.numeroArca, f.numeroNotaCredito, f.caeNotaCredito, c.cuitCuil) " +
                     "FROM FacturaVenta f " +
                     "LEFT JOIN f.cliente c " +
                     "JOIN f.condicionIva ci " +
@@ -28,7 +28,7 @@ public class FacturaReporteRepository {
 
     private static final String GROUP_BY =
             "GROUP BY f.id, f.numero, f.fechaEmision, c.denominacion, ci.denominacion, pv.descripcion, " +
-                    "f.importeTotal, f.estado, f.cae, f.numeroArca, f.numeroNotaCredito, f.caeNotaCredito ";
+                    "f.importeTotal, f.estado, f.cae, f.numeroArca, f.numeroNotaCredito, f.caeNotaCredito, c.cuitCuil ";
 
     // Orden fijo (mas nuevas primero; el id desempata): sin un orden estable,
     // la misma factura podria aparecer en dos paginas o en ninguna.
@@ -39,10 +39,11 @@ public class FacturaReporteRepository {
 
     /** Todas las facturas que cumplen los filtros, sin paginar (se usa para los contadores del menu). */
     public List<FacturaReporteDTO> buscarFacturasFiltradas(
-            LocalDateTime fechaDesde, LocalDateTime fechaHasta, String estado, Double montoMinimo) {
+            LocalDateTime fechaDesde, LocalDateTime fechaHasta, String estado, Double montoMinimo,
+            Long numero, String cliente) {
 
         Map<String, Object> params = new HashMap<>();
-        String where = construirWhere(fechaDesde, fechaHasta, estado, montoMinimo, params);
+        String where = construirWhere(fechaDesde, fechaHasta, estado, montoMinimo, numero, cliente, params);
 
         TypedQuery<FacturaReporteDTO> query =
                 em.createQuery(SELECT_REPORTE + where + GROUP_BY + ORDER_BY, FacturaReporteDTO.class);
@@ -57,17 +58,17 @@ public class FacturaReporteRepository {
      */
     public PaginaDTO<FacturaReporteDTO> buscarPaginaFiltrada(
             LocalDateTime fechaDesde, LocalDateTime fechaHasta, String estado, Double montoMinimo,
-            int pagina, int tamano) {
+            Long numero, String cliente, int pagina, int tamano) {
 
         Map<String, Object> params = new HashMap<>();
-        String where = construirWhere(fechaDesde, fechaHasta, estado, montoMinimo, params);
+        String where = construirWhere(fechaDesde, fechaHasta, estado, montoMinimo, numero, cliente, params);
 
         // 1) Cantidad total y suma de importes (las anuladas no suman, salvo que se pidan solo anuladas)
         String suma = "ANULADA".equalsIgnoreCase(estado)
                 ? "f.importeTotal"
                 : "CASE WHEN f.estado <> 'ANULADA' THEN f.importeTotal ELSE 0.0 END";
         Query totales = em.createQuery(
-                "SELECT COUNT(f), COALESCE(SUM(" + suma + "), 0.0) FROM FacturaVenta f " + where);
+                "SELECT COUNT(f), COALESCE(SUM(" + suma + "), 0.0) FROM FacturaVenta f LEFT JOIN f.cliente c " + where);
         params.forEach(totales::setParameter);
         Object[] fila = (Object[]) totales.getSingleResult();
         long totalElementos = ((Number) fila[0]).longValue();
@@ -88,14 +89,27 @@ public class FacturaReporteRepository {
         return new PaginaDTO<>(query.getResultList(), paginaReal, tamano, totalElementos, totalPaginas, importeTotal);
     }
 
-    /** Arma el WHERE con los filtros que vienen con valor y carga sus parametros. Solo usa columnas de f. */
+    /**
+     * Arma el WHERE con los filtros que vienen con valor y carga sus parametros.
+     * Usa columnas de f y de c (cliente, con LEFT JOIN: las de Consumidor Final no tienen cliente).
+     */
     private static String construirWhere(LocalDateTime fechaDesde, LocalDateTime fechaHasta, String estado,
-                                         Double montoMinimo, Map<String, Object> params) {
+                                         Double montoMinimo, Long numero, String cliente,
+                                         Map<String, Object> params) {
         StringBuilder where = new StringBuilder("WHERE 1=1 ");
         if (fechaDesde != null) { where.append("AND f.fechaEmision >= :fechaDesde "); params.put("fechaDesde", fechaDesde); }
         if (fechaHasta != null) { where.append("AND f.fechaEmision <= :fechaHasta "); params.put("fechaHasta", fechaHasta); }
         if (estado != null && !estado.isBlank()) { where.append("AND f.estado = :estado "); params.put("estado", estado); }
         if (montoMinimo != null) { where.append("AND f.importeTotal >= :montoMinimo "); params.put("montoMinimo", montoMinimo); }
+        // Numero de factura: coincidencia exacta (los borradores no tienen numero, nunca coinciden)
+        if (numero != null) { where.append("AND f.numero = :numero "); params.put("numero", numero); }
+        // Cliente: busca el texto dentro de la razon social o del CUIT/CUIL, sin distinguir mayusculas.
+        // Las facturas sin cliente se buscan como "Consumidor Final".
+        if (cliente != null && !cliente.isBlank()) {
+            where.append("AND (LOWER(COALESCE(c.denominacion, 'Consumidor Final')) LIKE :cliente ")
+                 .append("OR LOWER(COALESCE(c.cuitCuil, '')) LIKE :cliente) ");
+            params.put("cliente", "%" + cliente.trim().toLowerCase() + "%");
+        }
         return where.toString();
     }
 }

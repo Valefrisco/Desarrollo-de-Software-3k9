@@ -128,13 +128,58 @@
         .boton.aviso { color: var(--borrador); }
         .boton.aviso:hover { border-color: var(--borrador); }
         .boton.chico { padding: 5px 10px; font-size: 13px; }
+        /* Boton cuadrado con solo un icono (ej. imprimir en el listado) */
+        .boton.icono { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+        .boton.icono.cerrar-formulario { width: 36px; height: 36px; align-self: flex-start; }
         .boton:disabled { opacity: 0.45; cursor: not-allowed; }
 
         /* ===== Mensajes ===== */
+        /* Selector con explorador: un campo-boton que muestra lo elegido y abre la ventana emergente */
+        .selector-explorer { display: flex; gap: 6px; width: 100%; }
+        .selector-explorer .boton { flex-shrink: 0; }
+        /* Campo-boton del explorador: se ve como un campo y al hacer clic abre la ventana emergente */
+        .campo-explorer {
+            flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            font-size: 14px; padding: 8px 10px; text-align: left; cursor: pointer;
+            border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); color: var(--tinta);
+        }
+        .campo-explorer:hover { border-color: var(--tinta-suave); }
+        .campo-explorer .texto-visor { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .campo-explorer.vacio .texto-visor { color: var(--tinta-suave); }
+        .campo-explorer svg { flex-shrink: 0; color: var(--tinta-suave); }
+        .campo-explorer:disabled { background: var(--linea-suave); color: var(--tinta-suave); cursor: default; }
+        /* Ventanas emergentes (explorador de clientes y de articulos) */
+        dialog.explorador { width: min(860px, 94vw); max-height: 86vh; padding: 0; border: 1px solid var(--linea); border-radius: var(--radio); }
+        dialog.explorador::backdrop { background: rgba(20, 20, 20, .45); }
+        dialog.explorador > div { padding: 16px 20px; }
+        .explorador-cabecera { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--linea); }
+        .explorador-cabecera h3 { margin: 0; }
+        .explorador-cabecera p { margin: 2px 0 0; font-size: 13px; color: var(--tinta-suave); }
+        .explorador-filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+        .explorador-filtros label:first-child { flex: 1; min-width: 220px; }
+        .explorador-tabla { max-height: 50vh; overflow-y: auto; padding-top: 0 !important; }
+        .explorador-tabla tbody tr { cursor: pointer; }
+        .explorador-tabla tbody tr:hover { background: var(--fondo, #f2f2ef); }
+        .explorador-pie { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--linea); font-size: 13px; color: var(--tinta-suave); }
         #mensaje { padding: 12px 16px; border-radius: var(--radio); font-weight: 500; border-left: 4px solid; }
         #mensaje:not(.exito):not(.error) { display: none; }
         #mensaje.exito { background: var(--emitida-fondo); color: var(--emitida); }
         #mensaje.error { background: var(--anulada-fondo); color: var(--anulada); }
+        /* Campo con error: borde y fondo rojos hasta que el usuario lo corrige */
+        .invalido, .campo-explorer.invalido {
+            border-color: var(--anulada) !important;
+            background: var(--anulada-fondo) !important;
+            box-shadow: 0 0 0 3px rgba(176, 42, 34, .18);
+        }
+        /* Ventana emergente de error del comprobante */
+        dialog.alerta { width: min(480px, 92vw); padding: 0; border: 0; border-top: 5px solid var(--anulada);
+                        border-radius: var(--radio); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); }
+        dialog.alerta::backdrop { background: rgba(20, 20, 20, .45); }
+        dialog.alerta .alerta-cuerpo { padding: 20px 24px 8px; }
+        dialog.alerta h3 { margin: 0 0 8px; color: var(--anulada); }
+        dialog.alerta p { margin: 0; white-space: pre-line; }
+        dialog.alerta ul { margin: 0; padding-left: 20px; line-height: 1.6; }
+        dialog.alerta .alerta-pie { display: flex; justify-content: flex-end; padding: 12px 24px 20px; }
 
         /* ===== Campos ===== */
         label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; color: var(--tinta-suave); }
@@ -150,17 +195,29 @@
         select:disabled { background: var(--linea-suave); color: var(--tinta-suave); }
 
         /* ===== Filtros y listado ===== */
+        /* Filtros en grilla: 3 columnas x 2 filas de filtros + una 4ta columna con los botones */
         .filtros {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: flex-end;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+            gap: 12px 16px;
+            align-items: end;
             padding: 16px;
             background: var(--papel);
             border: 1px solid var(--linea);
             border-radius: var(--radio);
         }
-        .filtros .acciones-filtro { display: flex; gap: 8px; margin-left: auto; }
+        .filtros input, .filtros select { width: 100%; height: 38px; box-sizing: border-box; }
+        /* Los botones se ubican en la 4ta columna: Buscar alineado con la 1ra fila, Limpiar con la 2da */
+        .filtros .acciones-filtro { display: contents; }
+        .filtros .acciones-filtro .boton { grid-column: 4; height: 38px; min-width: 110px; }
+        .filtros .acciones-filtro .primario { grid-row: 1; }
+        .filtros .acciones-filtro #btn-limpiar-filtros { grid-row: 2; }
+        @media (max-width: 900px) {   /* pantallas angostas: 2 columnas y los botones abajo */
+            .filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .filtros .acciones-filtro .boton { grid-column: auto; grid-row: auto; }
+        }
+        /* Aviso chico (no emergente) cuando se busca sin ningun filtro */
+        .aviso-filtros { margin: -6px 0 12px; font-size: 13px; color: var(--anulada); }
 
         .listado { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -236,7 +293,17 @@
         .renglones thead th { background: transparent; }
         .renglones .agregar td { background: #f6f8fa; border-bottom: 0; }
         .renglones .agregar select { width: 100%; min-width: 220px; }
-        .renglones .agregar input { width: 110px; text-align: right; }
+        .renglones .agregar input { width: 96px; text-align: right; }
+        /* Articulo (explorador): ocupa el espacio libre de la fila, con el texto a la izquierda */
+        .renglones th:first-child { width: 30%; }   /* Articulo: la columna mas ancha */
+        /* Mini selector de lista de precios en cada renglon */
+        .renglones select.lista-renglon { width: auto; max-width: 160px; padding: 4px 6px; font-size: 13px; }
+        .renglones td.lista-renglon { font-size: 13px; color: var(--tinta-suave); }
+        /* flex-basis 0 + width 0: el ancho "natural" del input no agranda la tabla; ocupa lo que sobra */
+        .renglones .agregar #item-articulo-visor { width: 0; flex: 1 1 0; min-width: 140px; }
+        .renglones .agregar #btn-agregar-item { width: 100%; }   /* ocupa tambien la columna Subtotal */
+        /* Cliente (con su explorador) al lado de Condicion IVA; Observaciones abajo, a todo el ancho */
+        .grilla-cliente { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 
         .comprobante-pie { display: grid; grid-template-columns: 1fr 300px; gap: 24px; padding: 20px 24px; align-items: start; }
         .nota { font-size: 13px; color: var(--tinta-suave); margin: 0; max-width: 46ch; }
@@ -265,6 +332,37 @@
             .comprobante { animation: aparecer 180ms ease-out; }
             @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         }
+
+        /* ================= Comprobante impreso (Imprimir / Guardar PDF) =================
+           En pantalla no se ve; al imprimir se oculta todo lo demas y queda solo esta hoja A4. */
+        #impresion { display: none; }
+        @media print {
+            @page { size: A4; margin: 12mm; }
+            body > *:not(#impresion) { display: none !important; }
+            body { background: #fff; }
+            #impresion { display: block; color: #000; font-size: 11pt; }
+        }
+        .imp-cabecera { display: grid; grid-template-columns: 1fr 70px 1fr; border: 1.5px solid #000; }
+        .imp-cabecera > div { padding: 10px 14px; }
+        .imp-cabecera h1 { margin: 0 0 6px; font-size: 18pt; }
+        .imp-cabecera h2 { margin: 0 0 6px; font-size: 16pt; letter-spacing: .5px; }
+        .imp-cabecera p { margin: 2px 0; }
+        .imp-letra { border-left: 1.5px solid #000; border-right: 1.5px solid #000; text-align: center; padding: 6px 0 !important; }
+        .imp-letra b { display: block; font-size: 30pt; line-height: 1.1; }
+        .imp-letra small { font-size: 8pt; }
+        .imp-caja { border: 1.5px solid #000; border-top: 0; padding: 8px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
+        .imp-caja p { margin: 2px 0; }
+        #impresion table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt; }
+        #impresion th { background: #e6e6e6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        #impresion th, #impresion td { border: 1px solid #999; padding: 5px 7px; white-space: normal; }
+        #impresion .num { text-align: right; }
+        #impresion .sin-cortar { white-space: nowrap; }
+        .imp-totales { margin: 10px 0 0 auto; width: 45%; border: 1.5px solid #000; padding: 8px 14px; }
+        .imp-totales p { display: flex; justify-content: space-between; margin: 3px 0; }
+        .imp-totales .total { font-size: 13pt; font-weight: 700; border-top: 1px solid #000; padding-top: 5px; }
+        .imp-cae { margin-top: 14px; border: 1.5px solid #000; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; }
+        .imp-cae p { margin: 2px 0; }
+        .imp-cae .aviso { font-size: 8.5pt; max-width: 50%; text-align: right; }
     </style>
 </head>
 <body>
@@ -315,6 +413,16 @@
 
                     <!-- Filtros de busqueda (GET con parametros) -->
                     <form id="form-filtros" class="filtros">
+                        <!-- Fila 1: N° factura, Cliente, Monto minimo. Fila 2: Fecha desde, Fecha hasta, Estado -->
+                        <label>N° factura
+                            <input type="number" id="filtro-numero" min="1" step="1" inputmode="numeric" placeholder="Ej. 1005">
+                        </label>
+                        <label>Cliente
+                            <input type="search" id="filtro-cliente" placeholder="Razón social o CUIT">
+                        </label>
+                        <label>Monto mínimo
+                            <input type="number" id="filtro-monto-minimo" min="0" step="0.01" placeholder="$">
+                        </label>
                         <label>Fecha desde
                             <input type="date" id="filtro-fecha-desde">
                         </label>
@@ -331,14 +439,14 @@
                                 <option value="ANULADA">Anulada</option>
                             </select>
                         </label>
-                        <label>Monto mínimo
-                            <input type="number" id="filtro-monto-minimo" min="0" step="0.01" placeholder="$">
-                        </label>
                         <div class="acciones-filtro">
                             <button type="button" class="boton" id="btn-limpiar-filtros">Limpiar</button>
                             <button type="submit" class="boton primario">Buscar</button>
                         </div>
                     </form>
+                    <p id="aviso-filtros" class="aviso-filtros" role="alert" hidden>
+                        No hay filtros cargados: completá al menos uno para buscar.
+                    </p>
 
                     <div class="listado">
                         <table>
@@ -379,9 +487,14 @@
                             <h1 id="titulo-formulario">Nueva factura</h1>
                             <p id="descripcion-formulario">Completá el comprobante. Podés guardarlo como borrador o emitirlo.</p>
                         </div>
+                        <!-- Cierra el comprobante y vuelve al ultimo listado (misma vista, filtros y pagina) -->
+                        <button type="button" class="boton icono cerrar-formulario" id="btn-cerrar-formulario"
+                                title="Cerrar y volver al listado" aria-label="Cerrar y volver al listado"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
                     </div>
 
-                    <form id="form-factura" class="comprobante">
+                    <!-- novalidate: la validacion la hace app.ts (validarComprobante) y la muestra en una
+                         ventana emergente, en lugar de los globitos del navegador -->
+                    <form id="form-factura" class="comprobante" novalidate>
                         <!-- Cabecera: emisor | letra | datos del comprobante -->
                         <div class="comprobante-cabecera">
                             <div class="emisor">
@@ -400,7 +513,8 @@
                                 <label>Moneda
                                     <select id="tipo-moneda-id" required></select>
                                 </label>
-                                <label>Lista de precios
+                                <!-- Se aplica a los renglones NUEVOS; cada renglon guarda su propia lista -->
+                                <label title="Se aplica a los artículos que vas agregando. Cambiarla no modifica los renglones ya cargados.">Lista de precios por defecto
                                     <select id="lista-precio-id" required></select>
                                 </label>
                             </div>
@@ -409,9 +523,19 @@
                         <!-- Receptor -->
                         <div class="comprobante-seccion">
                             <h3>Cliente</h3>
-                            <div class="grilla-campos">
+                            <div class="grilla-campos grilla-cliente">
+                                <!-- Cliente y Condicion IVA en la misma fila; Observaciones abajo -->
                                 <label>Cliente
-                                    <select id="cliente-id"></select>
+                                    <!-- El select (oculto) sigue guardando el ID elegido; se elige con el explorador -->
+                                    <select id="cliente-id" hidden></select>
+                                    <span class="selector-explorer">
+                                        <!-- El campo es el boton: al hacer clic abre el explorador de clientes -->
+                                        <button type="button" class="campo-explorer" id="cliente-visor" title="Buscar cliente" aria-label="Cliente: hacé clic para buscar">
+                                            <span class="texto-visor">Consumidor Final</span>
+                                            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4.5-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                        </button>
+                                        <button type="button" class="boton" id="btn-quitar-cliente" title="Pasar a Consumidor Final" aria-label="Pasar a Consumidor Final">✕</button>
+                                    </span>
                                 </label>
                                 <label>Condición IVA
                                     <select id="condicion-iva-id" required></select>
@@ -430,6 +554,7 @@
                                     <thead>
                                     <tr>
                                         <th>Artículo</th>
+                                        <th>Lista</th>
                                         <th class="numero">Cantidad</th>
                                         <th class="numero">Precio unit.</th>
                                         <th class="numero">Bonif. %</th>
@@ -442,12 +567,24 @@
                                     </tbody>
                                     <tfoot>
                                     <tr class="agregar">
-                                        <td><select id="item-articulo-id" aria-label="Artículo"></select></td>
-                                        <td class="numero"><input type="number" id="item-cantidad" min="1" step="1" inputmode="numeric" placeholder="Cantidad" aria-label="Cantidad"></td>
+                                        <td>
+                                            <!-- El select (oculto) guarda el ID; se elige con el explorador de articulos -->
+                                            <select id="item-articulo-id" aria-label="Artículo" hidden></select>
+                                            <span class="selector-explorer">
+                                                <!-- El campo es el boton: al hacer clic abre el explorador de articulos -->
+                                                <button type="button" class="campo-explorer vacio" id="item-articulo-visor" title="Buscar artículo" aria-label="Artículo: hacé clic para buscar">
+                                                    <span class="texto-visor">Elegí un artículo</span>
+                                                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4.5-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                                </button>
+                                            </span>
+                                        </td>
+                                        <!-- Lista con la que se va a agregar el renglon (la "por defecto" del encabezado) -->
+                                        <td class="lista-renglon" id="item-lista">—</td>
+                                        <td class="numero"><input type="number" id="item-cantidad" min="1" step="1" inputmode="numeric" placeholder="Cant." aria-label="Cantidad"></td>
                                         <td class="numero" id="item-precio">—</td>
                                         <td class="numero"><input type="number" id="item-bonificacion" min="0" max="100" step="0.01" placeholder="0" aria-label="Bonificación %"></td>
-                                        <td></td>
-                                        <td><button type="button" class="boton chico" id="btn-agregar-item">Agregar</button></td>
+                                        <!-- Sin celda vacia de Subtotal: "Agregar" ocupa las dos ultimas columnas -->
+                                        <td colspan="2"><button type="button" class="boton chico" id="btn-agregar-item">Agregar</button></td>
                                     </tr>
                                     </tfoot>
                                 </table>
@@ -466,6 +603,8 @@
 
                         <div class="comprobante-acciones">
                             <button type="button" class="boton" id="btn-cancelar">Cancelar</button>
+                            <!-- Solo en "Ver" de una FACTURADA: imprime el comprobante (o lo guarda como PDF) -->
+                            <button type="button" class="boton primario" id="btn-imprimir" hidden>Imprimir / Guardar PDF</button>
                             <button type="button" class="boton" id="btn-guardar-borrador">Guardar borrador</button>
                             <button type="submit" class="boton primario" id="btn-emitir">Emitir factura</button>
                         </div>
@@ -477,6 +616,82 @@
 </div>
 
 <!-- El navegador ejecuta el JavaScript COMPILADO (dist/), no el .ts -->
+<!-- ===================== COMPROBANTE IMPRESO ===================== -->
+<!-- Lo completa app.ts (imprimirFactura) con GET /api/facturas/{id}/impresion; solo se ve al imprimir -->
+<section id="impresion" aria-hidden="true"></section>
+
+<!-- ===================== ERROR DEL COMPROBANTE (ventana emergente) ===================== -->
+<dialog id="dialogo-error" class="alerta" aria-labelledby="titulo-dialogo-error">
+    <div class="alerta-cuerpo">
+        <h3 id="titulo-dialogo-error">Revisá el comprobante</h3>
+        <div id="dialogo-error-texto"></div>
+    </div>
+    <div class="alerta-pie">
+        <button type="button" class="boton primario" id="btn-dialogo-error" autofocus>Entendido</button>
+    </div>
+</dialog>
+
+<!-- ===================== EXPLORADORES (ventanas emergentes) ===================== -->
+<!-- Fuera del formulario de factura: tienen sus propios filtros y no deben enviarlo -->
+<dialog id="explorador-clientes" class="explorador" aria-labelledby="titulo-exp-clientes">
+    <div class="explorador-cabecera">
+        <div>
+            <h3 id="titulo-exp-clientes">Elegir cliente</h3>
+            <p>Hacé clic en un cliente para elegirlo.</p>
+        </div>
+        <button type="button" class="boton chico" data-cerrar>Cerrar</button>
+    </div>
+    <div>
+        <form class="explorador-filtros" id="filtros-exp-clientes">
+            <label>Buscar
+                <input type="search" id="exp-cliente-texto" placeholder="Razón social o CUIT" autocomplete="off">
+            </label>
+        </form>
+    </div>
+    <div class="explorador-tabla">
+        <table>
+            <thead><tr><th>Razón social</th><th>CUIT/CUIL</th><th>Email</th><th>Domicilio</th></tr></thead>
+            <tbody id="exp-clientes-body"></tbody>
+        </table>
+    </div>
+    <div class="explorador-pie">
+        <span id="exp-clientes-cantidad"></span>
+        <button type="button" class="boton chico" id="btn-exp-consumidor-final">Usar Consumidor Final</button>
+    </div>
+</dialog>
+
+<dialog id="explorador-articulos" class="explorador" aria-labelledby="titulo-exp-articulos">
+    <div class="explorador-cabecera">
+        <div>
+            <h3 id="titulo-exp-articulos">Elegir artículo</h3>
+            <p id="exp-articulos-lista">Precios de la lista elegida.</p>
+        </div>
+        <button type="button" class="boton chico" data-cerrar>Cerrar</button>
+    </div>
+    <div>
+        <form class="explorador-filtros" id="filtros-exp-articulos">
+            <label>Buscar
+                <input type="search" id="exp-articulo-texto" placeholder="Código o descripción" autocomplete="off">
+            </label>
+            <label>Rubro
+                <select id="exp-articulo-rubro"></select>
+            </label>
+            <label>Marca
+                <select id="exp-articulo-marca"></select>
+            </label>
+        </form>
+    </div>
+    <div class="explorador-tabla">
+        <table>
+            <thead><tr><th>Código</th><th>Artículo</th><th>Rubro</th><th>Marca</th><th class="numero">Precio</th></tr></thead>
+            <tbody id="exp-articulos-body"></tbody>
+        </table>
+    </div>
+    <div class="explorador-pie">
+        <span id="exp-articulos-cantidad"></span>
+    </div>
+</dialog>
+
 <script type="module" src="dist/app.js"></script>
 </body>
 </html>

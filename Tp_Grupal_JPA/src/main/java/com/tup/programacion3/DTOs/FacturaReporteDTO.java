@@ -28,4 +28,5 @@ public class FacturaReporteDTO {
     private Long numeroArca;       // solo FACTURADA: numero del comprobante en ARCA
     private Long numeroNotaCredito;  // solo ANULADA en ARCA: numero de la Nota de Credito C
     private String caeNotaCredito;   // solo ANULADA en ARCA: CAE de la Nota de Credito C
+    private String clienteCuit;      // CUIT/CUIL del cliente (null = Consumidor Final)
 }

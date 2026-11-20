@@ -12,5 +12,7 @@ public record CatalogosDTO(
         List<OpcionDTO> condicionesIva,
         List<OpcionDTO> monedas,
         List<OpcionDTO> listasPrecio,
-        List<ArticuloPrecioDTO> articulos) {
+        List<ArticuloPrecioDTO> articulos,
+        List<OpcionDTO> rubros,      // para los filtros del explorador de articulos
+        List<OpcionDTO> marcas) {
 }

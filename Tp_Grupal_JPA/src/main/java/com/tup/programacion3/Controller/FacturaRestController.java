@@ -2,11 +2,13 @@ package com.tup.programacion3.Controller;
 
 import com.tup.programacion3.DTOs.AnulacionArcaDTO;
 import com.tup.programacion3.DTOs.AnulacionArcaRequestDTO;
+import com.tup.programacion3.DTOs.ComprobanteImpresionDTO;
 import com.tup.programacion3.DTOs.FacturaCompletaDTO;
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
 import com.tup.programacion3.DTOs.FacturaRequestDTO;
 import com.tup.programacion3.DTOs.PaginaDTO;
 import com.tup.programacion3.DTOs.ResultadoFacturacionDTO;
+import com.tup.programacion3.Service.ComprobanteImpresionService;
 import com.tup.programacion3.Service.FacturaService;
 import com.tup.programacion3.Service.FacturacionArcaService;
 import lombok.RequiredArgsConstructor;
@@ -30,18 +32,21 @@ public class FacturaRestController {
 
     private final FacturaService facturaService;
     private final FacturacionArcaService facturacionArcaService;
+    private final ComprobanteImpresionService comprobanteImpresionService;
 
     @GetMapping
     public List<FacturaReporteDTO> listar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             @RequestParam(required = false) String estado,
-            @RequestParam(required = false) Double montoMinimo) {
+            @RequestParam(required = false) Double montoMinimo,
+            @RequestParam(required = false) Long numero,      // numero de factura exacto
+            @RequestParam(required = false) String cliente) { // parte de la razon social o del CUIT
 
         LocalDateTime desde = (fechaDesde != null) ? fechaDesde.atStartOfDay() : null;
         LocalDateTime hasta = (fechaHasta != null) ? fechaHasta.atTime(LocalTime.MAX) : null;
 
-        return facturaService.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo);
+        return facturaService.buscarFacturasFiltradas(desde, hasta, estado, montoMinimo, numero, cliente);
     }
 
     // GET /api/facturas/pagina?pagina=0&tamano=10 (+ los mismos filtros que GET /api/facturas)
@@ -53,13 +58,15 @@ public class FacturaRestController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             @RequestParam(required = false) String estado,
             @RequestParam(required = false) Double montoMinimo,
+            @RequestParam(required = false) Long numero,
+            @RequestParam(required = false) String cliente,
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "10") int tamano) {
 
         LocalDateTime desde = (fechaDesde != null) ? fechaDesde.atStartOfDay() : null;
         LocalDateTime hasta = (fechaHasta != null) ? fechaHasta.atTime(LocalTime.MAX) : null;
 
-        return facturaService.buscarPaginaFiltrada(desde, hasta, estado, montoMinimo, pagina, tamano);
+        return facturaService.buscarPaginaFiltrada(desde, hasta, estado, montoMinimo, numero, cliente, pagina, tamano);
     }
 
     // GET /api/facturas/{id} -> factura con IDs y renglones (para cargarla en el formulario). 404 si no existe.
@@ -92,6 +99,14 @@ public class FacturaRestController {
     @PostMapping("/facturar-emitidas")
     public ResultadoFacturacionDTO facturarEmitidas() {
         return facturacionArcaService.facturarEmitidas();
+    }
+
+    // GET /api/facturas/{id}/impresion -> datos del comprobante impreso (PDF) de una FACTURADA:
+    // emisor, Factura C con punto de venta y numero de ARCA, receptor, renglones con los importes
+    // guardados, total, CAE y vencimiento del CAE. 409 si la factura no esta FACTURADA.
+    @GetMapping("/{id}/impresion")
+    public ComprobanteImpresionDTO impresion(@PathVariable Long id) {
+        return comprobanteImpresionService.obtener(id);
     }
 
     // POST /api/facturas/{id}/anular-en-arca  body: { "motivo": "..." }
