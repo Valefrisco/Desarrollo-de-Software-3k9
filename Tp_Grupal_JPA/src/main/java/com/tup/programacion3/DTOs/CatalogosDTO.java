@@ -15,4 +15,5 @@ public record CatalogosDTO(
         List<ArticuloPrecioDTO> articulos,
         List<OpcionDTO> rubros,      // para los filtros del explorador de articulos
         List<OpcionDTO> marcas) {
+        
 }
