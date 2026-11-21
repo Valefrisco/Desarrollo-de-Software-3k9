@@ -42,13 +42,20 @@ public class FacturacionArcaService {
     private final WsaaService wsaaService;
 
     /**
-     * Factura en ARCA todas las facturas EMITIDA, de la mas vieja a la mas nueva.
+     * Factura en ARCA las facturas EMITIDA, de la mas vieja a la mas nueva.
+     * idsPedidos null = TODAS las emitidas; con IDs = solo esas (ej. las de la pagina que se ve en
+     * el listado). De los IDs pedidos se ignoran los que no existen o ya no estan EMITIDA.
      * synchronized: evita que dos clics simultaneos manden la misma factura dos veces.
      */
-    public synchronized ResultadoFacturacionDTO facturarEmitidas() {
+    public synchronized ResultadoFacturacionDTO facturarEmitidas(List<Long> idsPedidos) {
+        if (idsPedidos != null && idsPedidos.isEmpty()) {
+            throw new IllegalArgumentException("No se indico ninguna factura para facturar");
+        }
         // Sin certificado de ARCA en esta PC: un solo error claro (y no uno por cada factura)
         wsaaService.verificarConfiguracion();
-        List<Long> ids = facturaVentaRepository.buscarIdsPorEstado(FacturaService.ESTADO_EMITIDA);
+        List<Long> ids = idsPedidos == null
+                ? facturaVentaRepository.buscarIdsPorEstado(FacturaService.ESTADO_EMITIDA)
+                : facturaVentaRepository.buscarIdsPorEstadoEntre(FacturaService.ESTADO_EMITIDA, idsPedidos);
 
         List<ResultadoFacturacionDTO.Detalle> detalle = new ArrayList<>();
         for (Long id : ids) {

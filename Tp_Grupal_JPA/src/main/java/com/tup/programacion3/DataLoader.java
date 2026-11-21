@@ -330,7 +330,7 @@ public class DataLoader implements CommandLineRunner {
 
         imprimirSeccion(2, "Proyección: número, fecha emisión e importe total");
         List<Object[]> facturas2 = em.createQuery("""
-                SELECT f.numero, f.fechaEmision, f.importeTotal 
+                SELECT f.numero, f.fechaEmision, f.importeTotal
                 FROM FacturaVenta f""", Object[].class).getResultList();
         for (Object[] row : facturas2) {
             System.out.println("-> Factura N°: " + row[0] + " | Fecha: " + row[1] + " | Total: " + row[2]);
@@ -338,8 +338,8 @@ public class DataLoader implements CommandLineRunner {
 
         imprimirSeccion(3, "Artículos por rubro");
         List<Articulo> articulos1 = em.createQuery("""
-                SELECT a 
-                FROM Articulo a 
+                SELECT a
+                FROM Articulo a
                 WHERE LOWER(a.rubro.denominacion) = LOWER(:denominacion)""", Articulo.class)
                 .setParameter("denominacion", "Bebidas.")
                 .getResultList();
@@ -349,8 +349,8 @@ public class DataLoader implements CommandLineRunner {
         LocalDateTime fechaDesde = ahora.minusDays(1);
         LocalDateTime fechaHasta = ahora.plusDays(1);
         List<FacturaVenta> facturas3 = em.createQuery("""
-                SELECT f 
-                FROM FacturaVenta f 
+                SELECT f
+                FROM FacturaVenta f
                 WHERE f.fechaEmision BETWEEN :desde AND :hasta""", FacturaVenta.class)
                 .setParameter("desde", fechaDesde)
                 .setParameter("hasta", fechaHasta)

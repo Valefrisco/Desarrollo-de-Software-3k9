@@ -6,6 +6,7 @@ import com.tup.programacion3.DTOs.ComprobanteImpresionDTO;
 import com.tup.programacion3.DTOs.FacturaCompletaDTO;
 import com.tup.programacion3.DTOs.FacturaReporteDTO;
 import com.tup.programacion3.DTOs.FacturaRequestDTO;
+import com.tup.programacion3.DTOs.FacturarEmitidasRequestDTO;
 import com.tup.programacion3.DTOs.PaginaDTO;
 import com.tup.programacion3.DTOs.ResultadoFacturacionDTO;
 import com.tup.programacion3.Service.ComprobanteImpresionService;
@@ -93,17 +94,19 @@ public class FacturaRestController {
         return ResponseEntity.ok(actualizada);
     }
 
-    // POST /api/facturas/facturar-emitidas -> pide el CAE a ARCA (homologacion) para todas las
-    // facturas EMITIDA. Las aprobadas pasan a FACTURADA (solo lectura); las rechazadas siguen
-    // EMITIDA con el motivo. Responde 200 con el resumen, aunque alguna haya sido rechazada.
+    // POST /api/facturas/facturar-emitidas -> pide el CAE a ARCA (homologacion) para las facturas
+    // EMITIDA. Sin cuerpo = TODAS; con body { "ids": [..] } = solo esas (ej. las de la pagina actual).
+    // Las aprobadas pasan a FACTURADA (solo lectura); las rechazadas siguen EMITIDA con el motivo.
+    // Responde 200 con el resumen, aunque alguna haya sido rechazada. 400 si "ids" viene vacio.
     @PostMapping("/facturar-emitidas")
-    public ResultadoFacturacionDTO facturarEmitidas() {
-        return facturacionArcaService.facturarEmitidas();
+    public ResultadoFacturacionDTO facturarEmitidas(@RequestBody(required = false) FacturarEmitidasRequestDTO request) {
+        return facturacionArcaService.facturarEmitidas(request != null ? request.ids() : null);
     }
 
-    // GET /api/facturas/{id}/impresion -> datos del comprobante impreso (PDF) de una FACTURADA:
-    // emisor, Factura C con punto de venta y numero de ARCA, receptor, renglones con los importes
-    // guardados, total, CAE y vencimiento del CAE. 409 si la factura no esta FACTURADA.
+    // GET /api/facturas/{id}/impresion -> datos del comprobante impreso (PDF) de una EMITIDA o FACTURADA:
+    // emisor, Factura C, receptor, renglones con los importes guardados y total. Una FACTURADA lleva
+    // el punto de venta y numero de ARCA, CAE y vencimiento; una EMITIDA, su numero del sistema y
+    // sin CAE. 409 si la factura es BORRADOR o ANULADA.
     @GetMapping("/{id}/impresion")
     public ComprobanteImpresionDTO impresion(@PathVariable Long id) {
         return comprobanteImpresionService.obtener(id);

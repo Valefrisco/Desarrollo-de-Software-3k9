@@ -133,8 +133,11 @@ export class FacturaService {
 
     // POST /api/facturas/facturar-emitidas  (responde 200 con el resumen)
     // Pide el CAE a ARCA para todas las EMITIDA; las aprobadas pasan a FACTURADA.
-    async facturarEmitidas(): Promise<ResultadoFacturacionDTO> {
-        const respuesta = await fetch(`${API_URL}/facturar-emitidas`, { method: 'POST' });
+    // ids: sin indicar = TODAS las emitidas; con IDs = solo esas (ej. las de la pagina actual)
+    async facturarEmitidas(ids?: number[]): Promise<ResultadoFacturacionDTO> {
+        const respuesta = await fetch(`${API_URL}/facturar-emitidas`, ids === undefined
+            ? { method: 'POST' }
+            : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
         return this.procesarRespuesta<ResultadoFacturacionDTO>(respuesta);
     }
 

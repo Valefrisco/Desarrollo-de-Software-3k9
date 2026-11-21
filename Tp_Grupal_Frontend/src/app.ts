@@ -78,6 +78,10 @@ const btnDialogoError = elemento<HTMLButtonElement>('btn-dialogo-error');
 const botonesMenu = Array.from(document.querySelectorAll<HTMLButtonElement>('.menu button[data-vista]'));
 const btnNuevaFactura = elemento<HTMLButtonElement>('btn-nueva-factura');
 const btnFacturarEmitidas = elemento<HTMLButtonElement>('btn-facturar-emitidas');
+const menuFacturar = elemento<HTMLDivElement>('menu-facturar');
+const opcionesFacturar = elemento<HTMLDivElement>('opciones-facturar');
+const btnFacturarTodas = elemento<HTMLButtonElement>('btn-facturar-todas');
+const btnFacturarPagina = elemento<HTMLButtonElement>('btn-facturar-pagina');
 
 // Modulo de listado
 const vistaListado = elemento<HTMLElement>('vista-listado');
@@ -104,6 +108,8 @@ const textoPagina = elemento<HTMLSpanElement>('texto-pagina');
 const TAMANO_PAGINA = 10;
 /** Pagina del listado que se esta mostrando (empieza en 0). Vuelve a 0 al cambiar de vista o de filtros. */
 let paginaActual = 0;
+/** IDs de las facturas EMITIDA de la pagina que se esta viendo (con los filtros aplicados). */
+let emitidasDeLaPagina: number[] = [];
 
 // Modulo nueva / editar factura (arranca oculto)
 const seccionFactura = elemento<HTMLElement>('seccion-factura');
@@ -440,7 +446,8 @@ function mostrarVista(vista: Vista, conservarPagina = false): void {
     campoFiltroEstado.hidden = vista !== 'HISTORICO';
     if (vista !== 'HISTORICO') filtroEstado.value = '';
     // Facturar en ARCA tiene sentido donde se ven las emitidas
-    btnFacturarEmitidas.hidden = vista !== 'EMITIDA' && vista !== 'HISTORICO';
+    menuFacturar.hidden = vista !== 'EMITIDA' && vista !== 'HISTORICO';
+    cerrarMenuFacturar();
 
     marcarMenu(vista);
     // Cada vista arranca en su primera pagina, salvo al volver del comprobante (se queda donde estaba)
@@ -519,6 +526,7 @@ function dibujarPaginacion(pagina: PaginaDTO<FacturaReporteDTO>): void {
 
 function dibujarFacturas(pagina: PaginaDTO<FacturaReporteDTO>): void {
     const facturas = pagina.contenido;
+    emitidasDeLaPagina = facturas.filter((f) => f.estado === 'EMITIDA').map((f) => f.id);
     facturasBody.replaceChildren();   // vacia la tabla
     facturasPie.replaceChildren();
 
@@ -557,8 +565,19 @@ function dibujarFacturas(pagina: PaginaDTO<FacturaReporteDTO>): void {
                 boton('Emitir', 'primario', () => void emitirBorrador(factura)),
             );
         } else if (factura.estado === 'EMITIDA') {
+            // Una emitida tambien se imprime (sin CAE: todavia no la autorizo ARCA)
+            const btnImprimirFila: HTMLButtonElement = botonIcono(ICONO_IMPRIMIR, 'Imprimir / Guardar PDF (sin CAE)',
+                () => void imprimirFactura(factura.id, btnImprimirFila));
+            // Facturar solo esta factura en ARCA (las demas emitidas no se tocan)
+            const btnFacturarFila: HTMLButtonElement = boton('Facturar', 'primario',
+                () => void facturarUna(factura, btnFacturarFila));
+            btnFacturarFila.title = 'Pedir el CAE a ARCA solo para esta factura';
+            // Emitida: los 4 botones con texto en 2x2 y la impresora aparte, a la derecha (ver CSS)
+            acciones.classList.add('acciones-emitida');
             acciones.append(
+                btnFacturarFila,
                 boton('Editar', '', () => void abrirFormularioEdicion(factura)),
+                btnImprimirFila,
                 boton('Anular', 'aviso', () => void anular(factura)),
             );
         } else if (factura.estado === 'FACTURADA') {
@@ -666,14 +685,42 @@ async function emitirBorrador(factura: FacturaReporteDTO): Promise<void> {
     }
 }
 
+/** Abre el desplegable de "Facturar emitidas en ARCA" con la cantidad de cada opcion. */
+function abrirMenuFacturar(): void {
+    const total = Number(elemento('contador-EMITIDA').textContent);
+    const enPagina = emitidasDeLaPagina.length;
+    btnFacturarTodas.innerHTML = 'Facturar <strong>todas</strong> las facturas emitidas';
+    btnFacturarTodas.append(crear('small', `${total} en total, sin importar filtros ni página`));
+    btnFacturarTodas.disabled = total === 0;
+    btnFacturarPagina.textContent = 'Facturar todas las de esta página';
+    btnFacturarPagina.append(crear('small', enPagina === 0
+        ? 'No hay emitidas en esta página'
+        : `${enPagina} ${enPagina === 1 ? 'emitida' : 'emitidas'} en la página que estás viendo (con los filtros aplicados)`));
+    btnFacturarPagina.disabled = enPagina === 0;
+    opcionesFacturar.hidden = false;
+    btnFacturarEmitidas.setAttribute('aria-expanded', 'true');
+}
+
+function cerrarMenuFacturar(): void {
+    opcionesFacturar.hidden = true;
+    btnFacturarEmitidas.setAttribute('aria-expanded', 'false');
+}
+
 /**
- * Manda a ARCA (homologacion) todas las facturas EMITIDA: POST /facturar-emitidas.
+ * Manda a ARCA (homologacion) facturas EMITIDA: POST /facturar-emitidas.
+ * soloPagina = false: TODAS las emitidas. true: solo las emitidas de la pagina actual.
  * Las aprobadas pasan a FACTURADA (con CAE); las rechazadas siguen EMITIDA con el motivo.
  */
-async function facturarEmitidas(): Promise<void> {
-    const cantidad = Number(elemento('contador-EMITIDA').textContent);
+async function facturarEmitidas(soloPagina: boolean): Promise<void> {
+    cerrarMenuFacturar();
+    const ids = soloPagina ? [...emitidasDeLaPagina] : undefined;
+    const cantidad = ids ? ids.length : Number(elemento('contador-EMITIDA').textContent);
+    if (cantidad === 0) return;
+    const queFacturas = cantidad === 1
+        ? (soloPagina ? 'la factura emitida de esta página' : 'la factura emitida')
+        : (soloPagina ? `las ${cantidad} facturas emitidas de esta página` : `TODAS las facturas emitidas (${cantidad})`);
     const confirmado = window.confirm(
-        `¿Facturar en ARCA ${cantidad === 1 ? 'la factura emitida' : `las ${cantidad} facturas emitidas`}?\n\n`
+        `¿Facturar en ARCA ${queFacturas}?\n\n`
         + 'Las que ARCA apruebe reciben su CAE y quedan de solo lectura: ya no se pueden editar, anular ni eliminar.');
     if (!confirmado) return;
 
@@ -682,7 +729,7 @@ async function facturarEmitidas(): Promise<void> {
     const textoBoton = btnFacturarEmitidas.textContent;
     btnFacturarEmitidas.textContent = 'Facturando en ARCA…';
     try {
-        const resultado = await service.facturarEmitidas();
+        const resultado = await service.facturarEmitidas(ids);
         const resumen = `${resultado.facturadas} ${resultado.facturadas === 1 ? 'factura facturada' : 'facturas facturadas'} en ARCA.`;
         if (resultado.rechazadas === 0) {
             mostrarMensaje(resumen, 'exito');
@@ -699,6 +746,37 @@ async function facturarEmitidas(): Promise<void> {
         btnFacturarEmitidas.textContent = textoBoton;
         // el estado "disabled" lo recalcula actualizarContadores al recargar
         btnFacturarEmitidas.disabled = !Number(elemento('contador-EMITIDA').textContent);
+    }
+}
+
+/**
+ * Factura en ARCA una sola factura EMITIDA (boton "Facturar" de su fila).
+ * Usa el mismo POST /facturar-emitidas, pero mandando solo su ID.
+ */
+async function facturarUna(factura: FacturaReporteDTO, botonUsado: HTMLButtonElement): Promise<void> {
+    const confirmado = window.confirm(
+        `¿Facturar en ARCA la factura ${factura.numeroFactura ?? factura.id} (${factura.clienteDenominacion})?\n\n`
+        + 'Si ARCA la aprueba recibe su CAE y queda de solo lectura: ya no se puede editar, anular ni eliminar.');
+    if (!confirmado) return;
+
+    // ARCA tarda unos segundos: se avisa en el boton y se evita el doble clic
+    botonUsado.disabled = true;
+    botonUsado.textContent = 'Facturando…';
+    try {
+        const resultado = await service.facturarEmitidas([factura.id]);
+        const d = resultado.detalle[0];
+        if (d && d.resultado === 'A') {
+            mostrarMensaje(`Factura ${d.numeroFactura ?? d.id} facturada en ARCA. CAE ${d.cae ?? '—'} (comprobante N° ${d.numeroArca ?? '—'}).`, 'exito');
+        } else if (d) {
+            mostrarMensaje(`ARCA no facturó la factura ${d.numeroFactura ?? d.id}; sigue como emitida: ${d.mensaje ?? 'rechazada'}`, 'error');
+        } else {
+            mostrarMensaje(`La factura ${factura.numeroFactura ?? factura.id} ya no estaba emitida: no se facturó.`, 'error');
+        }
+        await cargarFacturas();   // redibuja la tabla (la fila pasa a FACTURADA o queda como estaba)
+    } catch (error) {
+        mostrarMensaje(textoDeError(error), 'error');
+        botonUsado.disabled = false;
+        botonUsado.textContent = 'Facturar';
     }
 }
 
@@ -779,6 +857,7 @@ async function abrirFormularioEdicion(factura: FacturaReporteDTO): Promise<void>
             selectPuntoVenta.disabled = true;
             btnGuardarBorrador.hidden = true;
             btnEmitir.textContent = 'Guardar cambios';
+            btnImprimir.hidden = false;   // imprime lo guardado (sin CAE); los cambios sin guardar no salen
         } else {
             tituloFormulario.textContent = 'Editar borrador';
             descripcionFormulario.textContent = `Borrador de ${factura.clienteDenominacion}. Guardá los cambios o emitilo.`;
@@ -981,7 +1060,11 @@ async function imprimirFactura(id: number, botonUsado: HTMLButtonElement): Promi
     botonUsado.disabled = true;   // evita pedidos repetidos mientras llega la respuesta
     try {
         const c = await service.obtenerImpresion(id);
-        const numero = numeroArcaFormateado(c.puntoVentaArca, c.numeroArca);
+        // Facturada: punto de venta y numero de ARCA. Emitida (sin CAE): punto de venta y numero del sistema.
+        const conCae = c.estado === 'FACTURADA' && c.cae !== null;
+        const numero = conCae && c.puntoVentaArca !== null && c.numeroArca !== null
+            ? numeroArcaFormateado(c.puntoVentaArca, c.numeroArca)
+            : numeroArcaFormateado(c.puntoVentaNumero, c.numeroInterno ?? 0);
         const fecha = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('es-AR');
 
         // Cabecera: emisor | letra | comprobante
@@ -992,7 +1075,8 @@ async function imprimirFactura(id: number, botonUsado: HTMLButtonElement): Promi
         letra.append(crear('b', c.letra), crear('small', `COD. ${c.codigoComprobante}`));
         const comprobante = crear('div');
         comprobante.append(crear('h2', c.tipoComprobante), dato('Punto de venta y número', numero, true),
-            dato('Fecha de emisión', fecha(c.fechaFacturacion)), dato('CUIT', String(c.emisorCuit)),
+            dato('Fecha de emisión', fecha(c.fechaFacturacion ?? c.fechaEmision)),
+            dato('CUIT', c.emisorCuit ? String(c.emisorCuit) : '—'),   // 0 = ARCA no configurado en esta PC
             dato('N° interno', c.numeroInterno !== null ? String(c.numeroInterno) : '—'));
         const cabecera = crear('div', undefined, 'imp-cabecera');
         cabecera.append(emisor, letra, comprobante);
@@ -1030,18 +1114,25 @@ async function imprimirFactura(id: number, botonUsado: HTMLButtonElement): Promi
         total.append(crear('span', 'Importe total'), crear('span', formatoMoneda.format(c.importeTotal)));
         totales.append(subtotal, total);
 
-        // Autorizacion de ARCA: CAE y su vencimiento
-        const cae = crear('div', undefined, 'imp-cae');
+        // Autorizacion de ARCA: CAE y su vencimiento (una emitida todavia no lo tiene)
+        const cae = crear('div', undefined, conCae ? 'imp-cae' : 'imp-cae sin-cae');
         const datosCae = crear('div');
-        datosCae.append(dato('CAE N°', c.cae), dato('Fecha de vencimiento del CAE', c.caeVencimiento ? fecha(c.caeVencimiento) : '—'));
-        cae.append(datosCae, crear('p',
-            'Comprobante autorizado por ARCA en el entorno de homologación (pruebas): sin validez fiscal.', 'aviso'));
+        if (conCae) {
+            datosCae.append(dato('CAE N°', c.cae ?? '—'),
+                dato('Fecha de vencimiento del CAE', c.caeVencimiento ? fecha(c.caeVencimiento) : '—'));
+            cae.append(datosCae, crear('p',
+                'Comprobante autorizado por ARCA en el entorno de homologación (pruebas): sin validez fiscal.', 'aviso'));
+        } else {
+            datosCae.append(dato('CAE N°', 'Sin CAE'), dato('Estado', 'Emitida, pendiente de facturar en ARCA'));
+            cae.append(datosCae, crear('p',
+                'Comprobante NO VÁLIDO COMO FACTURA: todavía no fue autorizado por ARCA.', 'aviso'));
+        }
 
         seccionImpresion.replaceChildren(cabecera, receptor, tabla, totales, cae);
 
         // El titulo de la pagina es el nombre que el navegador sugiere para el PDF
         const tituloAnterior = document.title;
-        document.title = `Factura-${c.letra}-${numero}`;
+        document.title = conCae ? `Factura-${c.letra}-${numero}` : `Factura-${c.letra}-${numero}-SIN-CAE`;
         window.addEventListener('afterprint', () => (document.title = tituloAnterior), { once: true });
         window.print();
     } catch (error) {
@@ -1366,7 +1457,23 @@ for (const dialogo of [dialogClientes, dialogArticulos]) {
         if (afuera) dialogo.close();
     });
 }
-btnFacturarEmitidas.addEventListener('click', () => void facturarEmitidas());
+// "Facturar emitidas en ARCA" abre/cierra el desplegable con las dos opciones
+btnFacturarEmitidas.addEventListener('click', () => {
+    if (opcionesFacturar.hidden) abrirMenuFacturar();
+    else cerrarMenuFacturar();
+});
+btnFacturarTodas.addEventListener('click', () => void facturarEmitidas(false));
+btnFacturarPagina.addEventListener('click', () => void facturarEmitidas(true));
+// Clic fuera del desplegable o Escape: se cierra
+document.addEventListener('click', (evento: MouseEvent) => {
+    if (!opcionesFacturar.hidden && !menuFacturar.contains(evento.target as Node)) cerrarMenuFacturar();
+});
+document.addEventListener('keydown', (evento: KeyboardEvent) => {
+    if (evento.key === 'Escape' && !opcionesFacturar.hidden) {
+        cerrarMenuFacturar();
+        btnFacturarEmitidas.focus();
+    }
+});
 for (const b of botonesMenu) {
     b.addEventListener('click', () => mostrarVista(b.dataset.vista as Vista));
 }

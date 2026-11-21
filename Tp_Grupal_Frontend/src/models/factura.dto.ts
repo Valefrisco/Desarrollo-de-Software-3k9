@@ -82,11 +82,14 @@ export interface ComprobanteImpresionDTO {
     tipoComprobante: string;           // "FACTURA"
     letra: string;                     // "C"
     codigoComprobante: string;         // "011"
-    puntoVentaArca: number;
-    numeroArca: number;
-    fechaFacturacion: string;          // "AAAA-MM-DDTHH:mm:ss"
+    estado: 'EMITIDA' | 'FACTURADA';   // EMITIDA = todavia sin CAE de ARCA
+    puntoVentaArca: number | null;     // null en una EMITIDA
+    numeroArca: number | null;         // null en una EMITIDA
+    fechaFacturacion: string | null;   // "AAAA-MM-DDTHH:mm:ss"; null en una EMITIDA
     numeroInterno: number | null;
+    puntoVentaNumero: number;          // numero del punto de venta del sistema
     puntoVentaDescripcion: string;
+    fechaEmision: string;              // "AAAA-MM-DDTHH:mm:ss" (fecha de emision en el sistema)
     clienteDenominacion: string;
     clienteCuit: string | null;
     clienteDomicilio: string | null;
@@ -102,7 +105,7 @@ export interface ComprobanteImpresionDTO {
     }[];
     importeTotal: number;
     observaciones: string | null;
-    cae: string;
+    cae: string | null;                // null en una EMITIDA
     caeVencimiento: string | null;     // "AAAA-MM-DD"
 }
 

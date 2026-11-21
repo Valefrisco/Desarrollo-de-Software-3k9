@@ -18,4 +18,8 @@ public interface FacturaVentaRepository extends JpaRepository<FacturaVenta, Long
     // Se usa para facturar en ARCA todas las EMITIDA en orden de emision.
     @Query("SELECT f.id FROM FacturaVenta f WHERE f.estado = :estado ORDER BY f.fechaEmision ASC, f.id ASC")
     List<Long> buscarIdsPorEstado(@Param("estado") String estado);
+
+    // Igual que la anterior pero solo entre los IDs pedidos (ej. las emitidas de una pagina del listado).
+    @Query("SELECT f.id FROM FacturaVenta f WHERE f.estado = :estado AND f.id IN :ids ORDER BY f.fechaEmision ASC, f.id ASC")
+    List<Long> buscarIdsPorEstadoEntre(@Param("estado") String estado, @Param("ids") List<Long> ids);
 }

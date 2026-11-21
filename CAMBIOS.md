@@ -310,3 +310,71 @@ Ejemplo: Borradores → página 2 → Editar → ✕ → sigue en Borradores, p�
 | `Service/FacturacionArcaService.java` | `facturarEmitidas()` y `anularEnArca()` verifican la configuración antes de empezar. |
 | `Controller/ManejadorErrores.java` | `ArcaException` → **503** con el mensaje en el cuerpo. |
 | `README.md` (raíz) | Ver arriba. |
+
+---
+
+## 8. Imprimir también las facturas EMITIDA (sin CAE)
+
+**Qué hace:** las facturas EMITIDA (todavía no facturadas en ARCA) también se pueden imprimir o guardar en PDF.
+- En el listado, las filas EMITIDA tienen el mismo botón de impresora que las FACTURADA.
+- En "Editar" de una EMITIDA aparece "Imprimir / Guardar PDF". Imprime lo **guardado**: los cambios sin guardar no salen.
+- La hoja es la misma Factura C, pero numerada con el **punto de venta y número del sistema**
+  (ej. `0001-00000012`) y con la fecha de emisión del sistema. Donde iba el CAE dice "Sin CAE" y un
+  aviso en negrita: **"Comprobante NO VÁLIDO COMO FACTURA: todavía no fue autorizado por ARCA."** (recuadro punteado).
+- El PDF se sugiere como `Factura-C-0001-00000012-SIN-CAE`.
+- Funciona aunque ARCA no esté configurado en la PC (el CUIT del emisor sale como "—").
+- BORRADOR y ANULADA siguen sin imprimirse (responde **409**).
+
+| Archivo | Cambio |
+|---|---|
+| `DTOs/ComprobanteImpresionDTO.java` | Campos nuevos `estado`, `puntoVentaNumero`, `fechaEmision`. `puntoVentaArca`, `numeroArca`, `fechaFacturacion`, `cae` y `caeVencimiento` ahora pueden ser null (EMITIDA). |
+| `Service/ComprobanteImpresionService.java` | Acepta EMITIDA además de FACTURADA; en una EMITIDA manda los datos de ARCA en null. |
+| `Controller/FacturaRestController.java` | Comentario de `GET /{id}/impresion` actualizado. |
+| `src/models/factura.dto.ts` (front) | `ComprobanteImpresionDTO` espeja los cambios del DTO. |
+| `src/app.ts` (front) | Botón de imprimir en las filas EMITIDA y en el formulario de edición de una EMITIDA; `imprimirFactura()` arma la hoja con o sin CAE. |
+| `index.html` (front) | Estilo `.imp-cae.sin-cae` (borde punteado y aviso en negrita). |
+
+**Cómo probar:** Emitidas → botón de impresora en una fila → en el diálogo, "Guardar como PDF". Tiene que decir "Sin CAE" y el aviso de no válido.
+
+---
+
+## 9. "Facturar emitidas en ARCA": todas o solo las de la página
+
+**Qué hace:** antes el botón facturaba **todas** las EMITIDA del sistema. Ahora abre un desplegable con dos opciones:
+- **Facturar *todas* las facturas emitidas:** como antes; ignora filtros y página.
+- **Facturar todas las de esta página:** solo las EMITIDA que se ven en la página actual del listado
+  (con los filtros aplicados). Se deshabilita si en la página no hay ninguna emitida.
+
+Cada opción muestra cuántas facturas va a mandar y pide confirmación. El desplegable se cierra con un clic afuera o con Escape.
+
+| Archivo | Cambio |
+|---|---|
+| `DTOs/FacturarEmitidasRequestDTO.java` (nuevo) | `record` con `List<Long> ids` (cuerpo opcional del POST). |
+| `Controller/FacturaRestController.java` | `POST /facturar-emitidas` acepta `@RequestBody(required = false)`: sin cuerpo = todas; `{ "ids": [..] }` = solo esas. |
+| `Service/FacturacionArcaService.java` | `facturarEmitidas(List<Long> idsPedidos)`: `null` = todas; con IDs, solo las que sigan EMITIDA; lista vacía → **400**. |
+| `Repository/FacturaVentaRepository.java` | `buscarIdsPorEstadoEntre(estado, ids)`: como `buscarIdsPorEstado` pero con `f.id IN :ids`. |
+| `src/services/FacturaService.ts` (front) | `facturarEmitidas(ids?)`: con IDs manda el JSON `{ ids }`. |
+| `src/app.ts` (front) | `emitidasDeLaPagina` (se llena en `dibujarFacturas`), `abrirMenuFacturar()` / `cerrarMenuFacturar()`, `facturarEmitidas(soloPagina)`; cierre con clic afuera y Escape. |
+| `index.html` (front) | `#menu-facturar` con `#opciones-facturar` (dos opciones) y sus estilos. |
+
+**Cómo probar:** Emitidas → filtrar o ir a otra página → "Facturar emitidas en ARCA ▾" → "Facturar todas las de esta página".
+Solo pasan a FACTURADA las de esa página; las demás siguen emitidas. Verificable con `GET /api/arca/ultimo` (sube en la cantidad facturada).
+
+---
+
+## 10. Botón "Facturar" en cada factura emitida
+
+**Qué hace:** cada fila EMITIDA del listado tiene un botón **Facturar** que manda a ARCA solo esa factura.
+Pide confirmación, muestra "Facturando…" mientras espera y después avisa el resultado:
+- Aprobada: mensaje verde con el CAE y el número de comprobante de ARCA; la fila pasa a FACTURADA.
+- Rechazada: mensaje rojo con el motivo de ARCA; la factura sigue EMITIDA.
+
+No hizo falta tocar el back: reusa `POST /api/facturas/facturar-emitidas` con el cuerpo `{ "ids": [id] }` (sección 9).
+
+| Archivo | Cambio |
+|---|---|
+| `src/app.ts` (front) | Botón "Facturar" en las filas EMITIDA de `dibujarFacturas()` y función nueva `facturarUna(factura, boton)`. |
+| `index.html` (front) | `.acciones` con `flex-wrap`: si los botones de una fila no entran, bajan de renglón en vez de cortarse. |
+| `index.html` + `src/app.ts` (front) | Fila EMITIDA con clase `acciones-emitida`: grilla con Facturar/Editar arriba y Anular/Eliminar abajo (2x2), y el botón de imprimir aparte en una tercera columna, centrado entre los dos renglones. |
+
+**Cómo probar:** Emitidas → "Facturar" en una fila → aceptar. Solo esa pasa a FACTURADA; el resto sigue igual.
